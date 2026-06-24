@@ -13,7 +13,7 @@ export default function Home() {
     setLoading(true);
     try {
       await signInWithPopup(getFirebaseAuth(), googleProvider);
-      router.push("/dashboard");
+      router.replace("/dashboard");
     } catch (error) {
       console.error("로그인 실패:", error);
       setLoading(false);
@@ -33,7 +33,7 @@ export default function Home() {
       <div className="relative z-10 flex flex-col items-center gap-8 max-w-sm w-full">
         {/* 로고 */}
         <div className="flex flex-col items-center gap-3">
-          <h1 className="text-5xl font-bold tracking-tight">
+          <h1 className="text-4xl sm:text-5xl font-bold tracking-tight">
             <span className="text-pastel-purple">p</span>
             <span className="text-pastel-pink">r</span>
             <span className="text-pastel-blue">o</span>
@@ -53,7 +53,7 @@ export default function Home() {
         </div>
 
         {/* 카드 미리보기 */}
-        <div className="w-full bg-card rounded-3xl shadow-lg p-6 border border-pastel-pink/30">
+        <div className="w-full bg-card rounded-3xl shadow-lg p-6 border border-pastel-pink/30 no-bubble">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-12 h-12 rounded-full bg-gradient-to-br from-pastel-pink to-pastel-purple" />
             <div>
