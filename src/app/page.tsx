@@ -1,7 +1,7 @@
 "use client";
 
 import { signInWithPopup } from "firebase/auth";
-import { auth, googleProvider } from "@/lib/firebase";
+import { getFirebaseAuth, googleProvider } from "@/lib/firebase";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -12,7 +12,7 @@ export default function Home() {
   const handleGoogleLogin = async () => {
     setLoading(true);
     try {
-      await signInWithPopup(auth, googleProvider);
+      await signInWithPopup(getFirebaseAuth(), googleProvider);
       router.push("/dashboard");
     } catch (error) {
       console.error("로그인 실패:", error);

@@ -1,0 +1,13 @@
+{
+  "hosting": {
+    "site": "my-profile-5209e",
+    "public": "out",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}
