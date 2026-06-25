@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { doc, updateDoc } from "firebase/firestore";
 import { getFirebaseStorage, getFirebaseDb } from "@/lib/firebase";
+import { compressImage, cachePhoto, getCachedPhoto } from "@/lib/image";
 import type { User } from "firebase/auth";
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB (원본 기준, 압축 후 훨씬 작아짐)
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 export default function ProfilePhotoUpload({
@@ -19,8 +20,18 @@ export default function ProfilePhotoUpload({
   onPhotoUpdated: (url: string) => void;
 }) {
   const [uploading, setUploading] = useState(false);
-  const [preview, setPreview] = useState<string | null>(currentPhotoURL);
+  const [preview, setPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const cached = getCachedPhoto(user.uid);
+    if (cached) {
+      setPreview(cached);
+    } else if (currentPhotoURL) {
+      setPreview(currentPhotoURL);
+      cachePhoto(user.uid, currentPhotoURL);
+    }
+  }, [user.uid, currentPhotoURL]);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -32,19 +43,20 @@ export default function ProfilePhotoUpload({
     }
 
     if (file.size > MAX_FILE_SIZE) {
-      alert("파일 크기는 5MB 이하여야 합니다.");
+      alert("파일 크기는 10MB 이하여야 합니다.");
       return;
     }
 
-    setUploading(true);
-
     const localPreview = URL.createObjectURL(file);
     setPreview(localPreview);
+    setUploading(true);
 
     try {
+      const compressed = await compressImage(file);
+
       const storage = getFirebaseStorage();
       const storageRef = ref(storage, `profile-photos/${user.uid}`);
-      await uploadBytes(storageRef, file, { contentType: file.type });
+      await uploadBytes(storageRef, compressed, { contentType: "image/webp" });
       const downloadURL = await getDownloadURL(storageRef);
 
       const db = getFirebaseDb();
@@ -52,11 +64,13 @@ export default function ProfilePhotoUpload({
         photoURL: downloadURL,
       });
 
+      cachePhoto(user.uid, downloadURL);
       setPreview(downloadURL);
       onPhotoUpdated(downloadURL);
     } catch (error) {
       console.error("업로드 실패:", error);
-      setPreview(currentPhotoURL);
+      const cached = getCachedPhoto(user.uid);
+      setPreview(cached || currentPhotoURL);
       alert("사진 업로드에 실패했습니다. 다시 시도해주세요.");
     } finally {
       setUploading(false);
