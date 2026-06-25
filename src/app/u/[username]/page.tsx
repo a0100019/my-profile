@@ -158,7 +158,11 @@ export default function PublicProfile() {
             <span className="text-foreground">.</span>
             <span className="text-pastel-blue">profile</span>
           </h1>
-          {!currentUser && (
+          {currentUser ? (
+            <a href="/dashboard" className="absolute right-0 px-3 py-1.5 rounded-full bg-gradient-to-r from-pastel-purple to-pastel-pink text-white text-xs font-medium shadow-sm hover:shadow-md hover:scale-105 active:scale-95 transition-all">
+              내 프로필
+            </a>
+          ) : (
             <a href="/" className="absolute right-0 px-3 py-1.5 rounded-full bg-gradient-to-r from-pastel-purple to-pastel-pink text-white text-xs font-medium shadow-sm hover:shadow-md hover:scale-105 active:scale-95 transition-all">
               나도 만들기 ✨
             </a>
@@ -186,15 +190,15 @@ export default function PublicProfile() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 text-xs text-muted mb-2">
-            <span>🔮 {views}</span>
+          <div className="flex items-center justify-center gap-4 text-xs text-muted mb-2">
+            <span className="flex items-center gap-1">🔮 조회수 {views}</span>
             <button
               onClick={handleLike}
               disabled={!currentUser}
               className={`flex items-center gap-1 px-2 py-1 rounded-full transition-all ${liked ? "bg-pastel-pink/30 text-pastel-pink" : "hover:bg-pastel-pink/10"}`}
             >
               <span>{liked ? "🩷" : "🤍"}</span>
-              <span>{likes}</span>
+              <span>좋아요 {likes}</span>
             </button>
           </div>
 
