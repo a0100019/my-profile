@@ -62,7 +62,7 @@ export default function Home() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            {["🍕 피자", "🎬 영화", "🎵 음악", "📚 독서", "✈️ 여행", "💕 이상형"].map(
+            {["🍕 피자", "🎬 영화", "🎵 음악", "📚 독서", "✈️ 여행", "💕 이상형", "🐶 동물", "💼 MBTI", "🎌 애니"].map(
               (tag) => (
                 <span
                   key={tag}
