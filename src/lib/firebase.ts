@@ -25,12 +25,15 @@ export function getFirebaseAuth(): Auth {
   return _auth;
 }
 
+export const auth = getFirebaseAuth();
 export const googleProvider = new GoogleAuthProvider();
 
 export function getFirebaseDb(): Firestore {
   if (!_db) _db = getFirestore(getApp());
   return _db;
 }
+
+export const db = getFirebaseDb();
 
 export function getFirebaseStorage(): FirebaseStorage {
   if (!_storage) _storage = getStorage(getApp());

@@ -91,6 +91,12 @@ input:focus, textarea:focus {
   transition: box-shadow 0.3s ease;
 }
 
+/* 긴 텍스트 줄바꿈 */
+* {
+  word-break: break-all;
+  overflow-wrap: break-word;
+}
+
 /* 부드러운 스크롤바 */
 ::-webkit-scrollbar {
   width: 6px;

@@ -14,10 +14,12 @@ export default function ProfilePhotoUpload({
   user,
   currentPhotoURL,
   onPhotoUpdated,
+  size = "lg",
 }: {
   user: User;
   currentPhotoURL: string | null;
   onPhotoUpdated: (url: string) => void;
+  size?: "sm" | "lg";
 }) {
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
@@ -78,15 +80,17 @@ export default function ProfilePhotoUpload({
     }
   };
 
+  const sizeClass = size === "sm" ? "w-16 h-16" : "w-24 h-24";
+
   return (
-    <div className="flex flex-col items-center gap-3">
+    <div className="flex flex-col items-center gap-1 shrink-0">
       <button
         type="button"
         onClick={() => fileInputRef.current?.click()}
         disabled={uploading}
         className="relative group"
       >
-        <div className="w-24 h-24 rounded-full overflow-hidden border-3 border-pastel-purple/40 shadow-md">
+        <div className={`${sizeClass} rounded-full overflow-hidden border-2 border-pastel-purple/30 shadow-md`}>
           {preview ? (
             <img
               src={preview}
@@ -145,7 +149,7 @@ export default function ProfilePhotoUpload({
         onChange={handleFileSelect}
         className="hidden"
       />
-      <p className="text-muted text-xs">탭하여 사진 변경</p>
+      {size === "lg" && <p className="text-muted text-xs">탭하여 사진 변경</p>}
     </div>
   );
 }
