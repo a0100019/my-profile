@@ -16,8 +16,14 @@ interface Comment {
   createdAt: Timestamp | null;
 }
 
+interface CardItem {
+  text: string;
+  link?: string;
+  image?: string;
+}
+
 interface CategoryData {
-  items: string[];
+  items: (string | CardItem)[];
 }
 
 interface ProfileData {
@@ -303,15 +309,23 @@ export default function PublicProfile() {
                   {expandedCategories.has(cat.key) && (
                     <div className="px-4 py-3 flex flex-col gap-2">
                       {(profile?.[cat.key] as CategoryData)?.items.map(
-                        (item, i) => (
+                        (rawItem, i) => {
+                          const item = typeof rawItem === "string" ? { text: rawItem } : rawItem as CardItem;
+                          return (
                           <div
                             key={i}
                             className={`flex items-center gap-2 text-sm px-3 py-2 rounded-2xl ${rowColor.color}`}
                           >
                             <span className="w-5 h-5 flex items-center justify-center rounded-full bg-pastel-purple/20 text-pastel-purple text-xs font-bold shrink-0">{i + 1}</span>
-                            <span className="text-foreground/80">{item}</span>
+                            {item.image ? (
+                              <img src={item.image} alt={item.text} className="w-8 h-8 rounded-lg object-cover shrink-0" />
+                            ) : null}
+                            <span className="text-foreground/80 flex-1">{item.link ? (
+                              <a href={item.link} target="_blank" rel="noopener noreferrer" className="underline text-pastel-purple hover:text-pastel-purple/70">{item.text}</a>
+                            ) : item.text}</span>
                           </div>
-                        )
+                          );
+                        }
                       )}
                     </div>
                   )}

@@ -8,13 +8,18 @@ import { useRouter } from "next/navigation";
 import type { User } from "firebase/auth";
 import ProfilePhotoUpload from "@/components/ProfilePhotoUpload";
 
-interface CategoryData {
-  items: string[];
+interface CardItem {
+  text: string;
+  link?: string;
+  image?: string;
 }
 
-interface ProfileData {
-  [key: string]: CategoryData | string | number | string[] | unknown;
+interface CategoryData {
+  items: (string | CardItem)[];
 }
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ProfileData = Record<string, any>;
 
 const ALL_CATEGORIES = [
   { key: "food", emoji: "🍕", label: "음식" },
@@ -45,7 +50,9 @@ export default function Dashboard() {
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [editInput, setEditInput] = useState("");
-  const [editItems, setEditItems] = useState<string[]>([]);
+  const [editItems, setEditItems] = useState<CardItem[]>([]);
+  const [editLink, setEditLink] = useState("");
+  const [editImage, setEditImage] = useState("");
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
   const [userTag, setUserTag] = useState<number | null>(null);
@@ -121,7 +128,10 @@ export default function Dashboard() {
     return () => unsubscribe();
   }, [router]);
 
-  const saveCategory = async (categoryKey: string, items: string[]) => {
+  const toCardItem = (item: string | CardItem): CardItem =>
+    typeof item === "string" ? { text: item } : item;
+
+  const saveCategory = async (categoryKey: string, items: CardItem[]) => {
     if (!user) return;
     const newProfile = { ...profile, [categoryKey]: { items } };
     setProfile(newProfile);
@@ -462,20 +472,28 @@ export default function Dashboard() {
                   </button>
                   {expandedCategories.has(cat.key) && (
                     <div className="px-4 py-3 flex flex-col gap-2">
-                      {(profile[cat.key] as CategoryData)?.items.map((item, i) => (
+                      {profile[cat.key]?.items.map((rawItem: string | CardItem, i: number) => {
+                        const item = toCardItem(rawItem);
+                        return (
                         <div
                           key={i}
                           className={`flex items-center gap-2 text-sm px-3 py-2 rounded-2xl ${rowColor.color}`}
                         >
                           <span className="w-5 h-5 flex items-center justify-center rounded-full bg-pastel-purple/20 text-pastel-purple text-xs font-bold shrink-0">{i + 1}</span>
-                          <span className="text-foreground/80">{item}</span>
+                          {item.image ? (
+                            <img src={item.image} alt={item.text} className="w-8 h-8 rounded-lg object-cover shrink-0" />
+                          ) : null}
+                          <span className="text-foreground/80 flex-1">{item.link ? (
+                            <a href={item.link} target="_blank" rel="noopener noreferrer" className="underline text-pastel-purple hover:text-pastel-purple/70">{item.text}</a>
+                          ) : item.text}</span>
                         </div>
-                      ))}
+                        );
+                      })}
                       <div className="flex justify-end mt-1">
                         <button
                           onClick={() => {
                             setEditingCategory(cat.key);
-                            setEditItems((profile[cat.key] as CategoryData)?.items || []);
+                            setEditItems((profile[cat.key]?.items || []).map(toCardItem));
                           }}
                           className="px-4 py-1.5 rounded-xl bg-pastel-purple/15 border border-pastel-purple/30 text-pastel-purple text-xs font-medium hover:bg-pastel-purple/25 transition-colors"
                         >
@@ -529,7 +547,7 @@ export default function Dashboard() {
                 <div className="flex flex-col gap-2 mb-3">
                   {editItems.map((item, i) => (
                     <div
-                      key={item}
+                      key={item.text + i}
                       draggable
                       onDragStart={() => setDragIndex(i)}
                       onDragOver={(e) => {
@@ -552,7 +570,12 @@ export default function Dashboard() {
                       <span className="w-6 h-6 flex items-center justify-center rounded-full bg-pastel-purple/20 text-pastel-purple text-xs font-bold shrink-0">
                         {i + 1}
                       </span>
-                      <span className="text-sm text-foreground/80 flex-1">{item}</span>
+                      {item.image && <img src={item.image} alt="" className="w-7 h-7 rounded-lg object-cover shrink-0" />}
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm text-foreground/80">{item.text}</span>
+                        {item.link && <p className="text-[10px] text-pastel-purple truncate">🔗 {item.link}</p>}
+                        {item.image && !item.link && <p className="text-[10px] text-pastel-mint">🖼️ 이미지</p>}
+                      </div>
                       <div className="flex items-center gap-1 shrink-0">
                         {i > 0 && (
                           <button
@@ -593,35 +616,59 @@ export default function Dashboard() {
               )}
 
               {/* 입력 필드 */}
-              <div className="flex gap-2">
-                <input
-                  value={editInput}
-                  onChange={(e) => setEditInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && editInput.trim()) {
-                      e.preventDefault();
-                      if (!editItems.includes(editInput.trim())) {
-                        setEditItems([...editItems, editInput.trim()]);
+              <div className="flex flex-col gap-2">
+                <div className="flex gap-2">
+                  <input
+                    value={editInput}
+                    onChange={(e) => setEditInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && editInput.trim()) {
+                        e.preventDefault();
+                        const newItem: CardItem = { text: editInput.trim() };
+                        if (editLink.trim()) newItem.link = editLink.trim();
+                        if (editImage.trim()) newItem.image = editImage.trim();
+                        setEditItems([...editItems, newItem]);
+                        setEditInput("");
+                        setEditLink("");
+                        setEditImage("");
                       }
-                      setEditInput("");
-                    }
-                  }}
-                  maxLength={50}
-                  placeholder="입력 후 엔터 (최대 50자)"
-                  className="flex-1 px-4 py-3 rounded-2xl border border-pastel-purple/30 bg-background text-foreground text-sm focus:outline-none focus:border-pastel-purple"
-                  autoFocus
-                />
-                <button
-                  onClick={() => {
-                    if (editInput.trim() && !editItems.includes(editInput.trim())) {
-                      setEditItems([...editItems, editInput.trim()]);
-                      setEditInput("");
-                    }
-                  }}
-                  className="px-4 py-3 rounded-2xl bg-pastel-purple/20 text-pastel-purple font-medium hover:bg-pastel-purple/30 transition-colors"
-                >
-                  +
-                </button>
+                    }}
+                    maxLength={50}
+                    placeholder="입력 후 엔터 (최대 50자)"
+                    className="flex-1 px-4 py-3 rounded-2xl border border-pastel-purple/30 bg-background text-foreground text-sm focus:outline-none focus:border-pastel-purple"
+                    autoFocus
+                  />
+                  <button
+                    onClick={() => {
+                      if (editInput.trim()) {
+                        const newItem: CardItem = { text: editInput.trim() };
+                        if (editLink.trim()) newItem.link = editLink.trim();
+                        if (editImage.trim()) newItem.image = editImage.trim();
+                        setEditItems([...editItems, newItem]);
+                        setEditInput("");
+                        setEditLink("");
+                        setEditImage("");
+                      }
+                    }}
+                    className="px-4 py-3 rounded-2xl bg-pastel-purple/20 text-pastel-purple font-medium hover:bg-pastel-purple/30 transition-colors"
+                  >
+                    +
+                  </button>
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    value={editLink}
+                    onChange={(e) => { setEditLink(e.target.value); if (e.target.value) setEditImage(""); }}
+                    placeholder="🔗 링크 (선택)"
+                    className={`flex-1 px-3 py-2 rounded-xl border text-xs focus:outline-none ${editLink ? "border-pastel-purple/40 bg-pastel-purple/5" : "border-pastel-purple/20 bg-background"} ${editImage ? "opacity-40 pointer-events-none" : ""}`}
+                  />
+                  <input
+                    value={editImage}
+                    onChange={(e) => { setEditImage(e.target.value); if (e.target.value) setEditLink(""); }}
+                    placeholder="🖼️ 이미지 URL (선택)"
+                    className={`flex-1 px-3 py-2 rounded-xl border text-xs focus:outline-none ${editImage ? "border-pastel-mint/40 bg-pastel-mint/5" : "border-pastel-purple/20 bg-background"} ${editLink ? "opacity-40 pointer-events-none" : ""}`}
+                  />
+                </div>
               </div>
 
               <button
@@ -634,6 +681,8 @@ export default function Dashboard() {
                   setEditingCategory(null);
                   setEditInput("");
                   setEditItems([]);
+                  setEditLink("");
+                  setEditImage("");
                 }}
                 className="w-full mt-4 py-3 rounded-2xl bg-gradient-to-r from-pastel-purple to-pastel-pink text-white font-medium hover:shadow-lg transition-all"
               >
