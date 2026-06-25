@@ -11,6 +11,8 @@ interface Comment {
   id: string;
   text: string;
   authorName: string;
+  authorUsername: string;
+  authorTag: number;
   authorPhoto: string;
   authorUid: string;
   createdAt: Timestamp | null;
@@ -138,11 +140,15 @@ export default function PublicProfile() {
     if (!currentUser || !profileUserId || !commentText.trim()) return;
     setSubmitting(true);
     try {
+      const authorSnap = await getDoc(doc(db, "users", currentUser.uid));
+      const authorData = authorSnap.exists() ? authorSnap.data() : {};
       const commentsRef = collection(db, "users", profileUserId, "comments");
       await addDoc(commentsRef, {
         text: commentText.trim(),
-        authorName: currentUser.displayName || "익명",
-        authorPhoto: currentUser.photoURL || "",
+        authorName: authorData.displayName || currentUser.displayName || "익명",
+        authorUsername: authorData.username || "",
+        authorTag: authorData.tag || 0,
+        authorPhoto: authorData.photoURL || currentUser.photoURL || "",
         authorUid: currentUser.uid,
         createdAt: serverTimestamp(),
       });
@@ -351,8 +357,11 @@ export default function PublicProfile() {
                       <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pastel-pink to-pastel-purple shrink-0" />
                     )}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-xs font-semibold text-foreground">{c.authorName}</span>
+                      <div className="flex items-baseline gap-2 flex-wrap">
+                        <a href={`/u/${c.authorUsername || c.authorUid}`} className="text-xs font-semibold text-foreground hover:text-pastel-purple transition-colors">
+                          {c.authorUsername || c.authorName}
+                        </a>
+                        {c.authorTag ? <span className="text-[10px] text-pastel-purple">#{c.authorTag}</span> : null}
                         {c.createdAt && (
                           <span className="text-[10px] text-muted">
                             {c.createdAt.toDate().toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}
