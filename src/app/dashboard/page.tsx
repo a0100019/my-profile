@@ -13,7 +13,7 @@ interface CategoryData {
 }
 
 interface ProfileData {
-  [key: string]: CategoryData;
+  [key: string]: CategoryData | string | number | string[] | unknown;
 }
 
 const ALL_CATEGORIES = [
@@ -203,7 +203,7 @@ export default function Dashboard() {
   };
 
   const addedDefault = ALL_CATEGORIES.filter((cat) => profile[cat.key]);
-  const customKeys = Object.keys(profile).filter((k) => k.startsWith("custom_") && profile[k]?.items?.length > 0);
+  const customKeys = Object.keys(profile).filter((k) => k.startsWith("custom_") && (profile[k] as CategoryData)?.items?.length > 0);
   const customCategories = customKeys.map((k) => ({
     key: k,
     emoji: "✨",
@@ -462,7 +462,7 @@ export default function Dashboard() {
                   </button>
                   {expandedCategories.has(cat.key) && (
                     <div className="px-4 py-3 flex flex-col gap-2">
-                      {profile[cat.key]?.items.map((item, i) => (
+                      {(profile[cat.key] as CategoryData)?.items.map((item, i) => (
                         <div
                           key={i}
                           className={`flex items-center gap-2 text-sm px-3 py-2 rounded-2xl ${rowColor.color}`}
@@ -475,7 +475,7 @@ export default function Dashboard() {
                         <button
                           onClick={() => {
                             setEditingCategory(cat.key);
-                            setEditItems(profile[cat.key]?.items || []);
+                            setEditItems((profile[cat.key] as CategoryData)?.items || []);
                           }}
                           className="px-4 py-1.5 rounded-xl bg-pastel-purple/15 border border-pastel-purple/30 text-pastel-purple text-xs font-medium hover:bg-pastel-purple/25 transition-colors"
                         >
@@ -736,7 +736,7 @@ export default function Dashboard() {
 
               <div className="flex justify-center mb-4">
                 <ProfilePhotoUpload
-                  user={user}
+                  user={user!}
                   currentPhotoURL={(profile as Record<string, unknown>).photoURL as string || user?.photoURL || null}
                   onPhotoUpdated={(url) => setProfile((prev) => ({ ...prev, photoURL: url }))}
                   size="lg"

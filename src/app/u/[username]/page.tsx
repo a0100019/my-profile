@@ -1,11 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, query, where, getDocs, doc, getDoc, setDoc, updateDoc, increment, arrayUnion, arrayRemove } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, getDoc, setDoc, updateDoc, increment, arrayUnion, arrayRemove, addDoc, orderBy, onSnapshot, serverTimestamp, type Timestamp } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { useParams } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
 import type { User } from "firebase/auth";
+
+interface Comment {
+  id: string;
+  text: string;
+  authorName: string;
+  authorPhoto: string;
+  authorUid: string;
+  createdAt: Timestamp | null;
+}
 
 interface CategoryData {
   items: string[];
@@ -16,7 +25,13 @@ interface ProfileData {
   photoURL: string;
   email: string;
   username: string;
-  [key: string]: unknown;
+  tag?: number;
+  bio?: string;
+  views?: number;
+  likes?: number;
+  likedBy?: string[];
+  infoFields?: { label: string; value: string }[];
+  [key: string]: CategoryData | string | number | string[] | { label: string; value: string }[] | undefined;
 }
 
 const CATEGORIES = [
@@ -53,6 +68,9 @@ export default function PublicProfile() {
   const [liked, setLiked] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [profileUserId, setProfileUserId] = useState<string>("");
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [commentText, setCommentText] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => setCurrentUser(u));
@@ -97,6 +115,38 @@ export default function PublicProfile() {
     };
     fetchProfile();
   }, [username, currentUser]);
+
+  useEffect(() => {
+    if (!profileUserId) return;
+    const commentsRef = collection(db, "users", profileUserId, "comments");
+    const q2 = query(commentsRef, orderBy("createdAt", "asc"));
+    const unsubscribe = onSnapshot(q2, (snapshot) => {
+      setComments(
+        snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Comment))
+      );
+    });
+    return () => unsubscribe();
+  }, [profileUserId]);
+
+  const handleComment = async () => {
+    if (!currentUser || !profileUserId || !commentText.trim()) return;
+    setSubmitting(true);
+    try {
+      const commentsRef = collection(db, "users", profileUserId, "comments");
+      await addDoc(commentsRef, {
+        text: commentText.trim(),
+        authorName: currentUser.displayName || "익명",
+        authorPhoto: currentUser.photoURL || "",
+        authorUid: currentUser.uid,
+        createdAt: serverTimestamp(),
+      });
+      setCommentText("");
+    } catch (error) {
+      console.error("댓글 작성 실패:", error);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const handleLike = async () => {
     if (!currentUser || !profileUserId) return;
@@ -184,7 +234,7 @@ export default function PublicProfile() {
             )}
             <div>
               <h2 className="text-lg font-semibold">
-                {profile?.username}{profile?.tag && <span className="text-pastel-purple text-sm font-normal ml-1.5">#{profile.tag as number}</span>}
+                {profile?.username}{profile?.tag ? <span className="text-pastel-purple text-sm font-normal ml-1.5">#{String(profile.tag)}</span> : null}
               </h2>
               <p className="text-sm text-muted">{profile?.displayName}</p>
             </div>
@@ -202,18 +252,18 @@ export default function PublicProfile() {
             </button>
           </div>
 
-          {(profile?.bio || (profile?.infoFields as {label: string; value: string}[])?.length > 0) && (
+          {(profile?.bio || (profile?.infoFields?.length ?? 0) > 0) && (
             <div className="w-full rounded-2xl bg-pastel-purple/10 border border-pastel-purple/20 p-4 mb-2">
               <p className="text-xs text-muted font-medium mb-3">자기소개</p>
-              {profile?.bio && (
+              {profile?.bio ? (
                 <div className="w-full px-3 py-2 rounded-xl bg-card/60 border border-pastel-purple/15 mb-2 text-center">
                   <p className="text-[10px] text-muted">한줄 소개</p>
-                  <p className="text-sm text-foreground/70">{profile.bio as string}</p>
+                  <p className="text-sm text-foreground/70">{profile.bio}</p>
                 </div>
-              )}
-              {(profile?.infoFields as {label: string; value: string}[])?.length > 0 && (
+              ) : null}
+              {(profile?.infoFields?.length ?? 0) > 0 && (
                 <div className="grid grid-cols-2 gap-2">
-                  {(profile.infoFields as {label: string; value: string}[]).map((f, i) => (
+                  {profile!.infoFields!.map((f, i) => (
                     <div key={i} className="px-3 py-2 rounded-xl bg-card/60 border border-pastel-purple/15 text-center">
                       <p className="text-[10px] text-muted">{f.label}</p>
                       <p className="text-sm text-foreground/70">{f.value}</p>
@@ -272,6 +322,56 @@ export default function PublicProfile() {
           )}
         </div>
 
+        {/* 댓글 */}
+        {currentUser && (
+          <div className="w-full bg-card rounded-3xl shadow-lg p-6 border border-pastel-mint/30">
+            <p className="text-sm font-semibold text-foreground mb-4">💬 댓글 {comments.length > 0 && <span className="text-muted font-normal">{comments.length}</span>}</p>
+
+            {comments.length > 0 && (
+              <div className="flex flex-col gap-3 mb-4">
+                {comments.map((c) => (
+                  <div key={c.id} className="flex gap-3">
+                    {c.authorPhoto ? (
+                      <img src={c.authorPhoto} alt="" className="w-8 h-8 rounded-full border border-pastel-purple/20 shrink-0" referrerPolicy="no-referrer" />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pastel-pink to-pastel-purple shrink-0" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-xs font-semibold text-foreground">{c.authorName}</span>
+                        {c.createdAt && (
+                          <span className="text-[10px] text-muted">
+                            {c.createdAt.toDate().toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-foreground/80 break-words">{c.text}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={commentText}
+                onChange={(e) => setCommentText(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && !e.nativeEvent.isComposing && handleComment()}
+                placeholder="댓글을 남겨보세요..."
+                maxLength={200}
+                className="flex-1 min-w-0 px-4 py-2.5 rounded-2xl bg-background border border-pastel-purple/20 text-sm text-foreground placeholder:text-muted focus:outline-none focus:border-pastel-purple/50"
+              />
+              <button
+                onClick={handleComment}
+                disabled={submitting || !commentText.trim()}
+                className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-pastel-purple to-pastel-pink text-white text-sm font-medium shadow-sm hover:shadow-md hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+              >
+                {submitting ? "..." : "작성"}
+              </button>
+            </div>
+          </div>
+        )}
 
       </div>
     </main>
