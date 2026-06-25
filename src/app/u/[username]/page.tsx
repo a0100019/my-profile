@@ -336,18 +336,17 @@ export default function PublicProfile() {
             {comments.length > 0 && (
               <div className="flex flex-col gap-3 mb-4">
                 {comments.map((c) => (
-                  <div key={c.id} className="flex gap-3">
+                  <a key={c.id} href={`/u/${c.authorUsername || c.authorUid}`} className="flex gap-3 rounded-2xl p-2 -mx-2 hover:bg-pastel-purple/5 transition-colors">
                     {c.authorPhoto ? (
                       <img src={c.authorPhoto} alt="" className="w-8 h-8 rounded-full border border-pastel-purple/20 shrink-0" referrerPolicy="no-referrer" />
                     ) : (
                       <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pastel-pink to-pastel-purple shrink-0" />
                     )}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-baseline gap-2 flex-wrap">
-                        <a href={`/u/${c.authorUsername || c.authorUid}`} className="text-xs font-semibold text-foreground hover:text-pastel-purple transition-colors">
-                          {c.authorUsername || c.authorName}
-                        </a>
+                      <div className="flex items-baseline gap-1.5 flex-wrap">
+                        <span className="text-xs font-semibold text-foreground">{c.authorUsername || c.authorName}</span>
                         {c.authorTag ? <span className="text-[10px] text-pastel-purple">#{c.authorTag}</span> : null}
+                        <span className="text-[10px] text-muted">{c.authorName}</span>
                         {c.createdAt && (
                           <span className="text-[10px] text-muted">
                             {c.createdAt.toDate().toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}
@@ -356,7 +355,7 @@ export default function PublicProfile() {
                       </div>
                       <p className="text-sm text-foreground/80 break-words">{c.text}</p>
                     </div>
-                  </div>
+                  </a>
                 ))}
               </div>
             )}
