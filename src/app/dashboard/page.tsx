@@ -2,11 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { doc, getDoc, getDocFromServer, setDoc, updateDoc, runTransaction, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, getDocFromServer, setDoc, updateDoc, runTransaction, serverTimestamp, collection, getDocs } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
 import type { User } from "firebase/auth";
 import ProfilePhotoUpload from "@/components/ProfilePhotoUpload";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { getFirebaseStorage } from "@/lib/firebase";
+import { compressImage } from "@/lib/image";
 
 interface CardItem {
   text: string;
@@ -53,6 +56,14 @@ export default function Dashboard() {
   const [editItems, setEditItems] = useState<CardItem[]>([]);
   const [editLink, setEditLink] = useState("");
   const [editImage, setEditImage] = useState("");
+  const [uploadingCardImage, setUploadingCardImage] = useState(false);
+  const [cardImageZoom, setCardImageZoom] = useState<string | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
+  const [showRanking, setShowRanking] = useState(false);
+  const [rankingTab, setRankingTab] = useState<"views" | "likes">("views");
+  const [rankingList, setRankingList] = useState<{username: string; displayName: string; tag: number; photoURL: string; views: number; likes: number}[]>([]);
+  const [loadingRanking, setLoadingRanking] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
   const [userTag, setUserTag] = useState<number | null>(null);
@@ -187,6 +198,29 @@ export default function Dashboard() {
     return results;
   };
 
+  const openRanking = async () => {
+    setShowRanking(true);
+    setLoadingRanking(true);
+    try {
+      const snapshot = await getDocs(collection(db, "users"));
+      const users = snapshot.docs.map((d) => {
+        const data = d.data();
+        return {
+          username: data.username || "",
+          displayName: data.displayName || "",
+          tag: data.tag || 0,
+          photoURL: data.photoURL || "",
+          views: data.views || 0,
+          likes: data.likes || 0,
+        };
+      });
+      setRankingList(users);
+    } catch (error) {
+      console.error("순위 로드 실패:", error);
+    }
+    setLoadingRanking(false);
+  };
+
   const openLikedBy = async () => {
     setLoadingList(true);
     setShowLikedBy(true);
@@ -264,6 +298,12 @@ export default function Dashboard() {
       <div className="max-w-sm w-full flex flex-col items-center gap-6">
         {/* 헤더 */}
         <div className="w-full relative flex items-center justify-center">
+          <button
+            onClick={() => setShowSettings(true)}
+            className="absolute left-0 text-sm text-muted hover:text-foreground transition-colors"
+          >
+            ⚙️
+          </button>
           <h1 className="text-2xl font-bold">
             <span className="text-pastel-purple">my</span>
             <span className="text-foreground">.</span>
@@ -502,12 +542,13 @@ export default function Dashboard() {
                           className={`flex items-center gap-2 text-sm px-3 py-2 rounded-2xl ${rowColor.color}`}
                         >
                           <span className="w-5 h-5 flex items-center justify-center rounded-full bg-pastel-purple/20 text-pastel-purple text-xs font-bold shrink-0">{i + 1}</span>
-                          {item.image ? (
-                            <img src={item.image} alt={item.text} className="w-8 h-8 rounded-lg object-cover shrink-0" />
-                          ) : null}
-                          <span className="text-foreground/80 flex-1">{item.link ? (
-                            <a href={item.link} target="_blank" rel="noopener noreferrer" className="underline text-pastel-purple hover:text-pastel-purple/70">{item.text}</a>
-                          ) : item.text}</span>
+                          <span className="text-foreground/80 flex-1">{item.text}</span>
+                          {item.image && (
+                            <img src={item.image} alt={item.text} className="w-8 h-8 rounded-lg object-cover shrink-0 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setCardImageZoom(item.image!)} />
+                          )}
+                          {item.link && (
+                            <a href={item.link.match(/^https?:\/\//) ? item.link : `https://${item.link}`} target="_blank" rel="noopener noreferrer" className="text-[10px] text-pastel-purple hover:text-pastel-purple/70 shrink-0">링크 이동</a>
+                          )}
                         </div>
                         );
                       })}
@@ -529,20 +570,84 @@ export default function Dashboard() {
               })}
             </div>
           )}
+
+          {/* 순서 바꾸기 (흰 박스 안) */}
+          {addedCategories.length >= 2 && (
+            <button
+              onClick={() => {
+                setReorderingCategories(true);
+                setCategoryOrder(addedCategories.map((c) => c.key));
+              }}
+              className="text-xs text-muted hover:text-pastel-purple transition-colors mt-2"
+            >
+              순서 바꾸기
+            </button>
+          )}
         </div>
 
-        {/* 순서 바꾸기 */}
-        {addedCategories.length >= 2 && (
-          <button
-            onClick={() => {
-              setReorderingCategories(true);
-              setCategoryOrder(addedCategories.map((c) => c.key));
-            }}
-            className="text-xs text-muted hover:text-pastel-purple transition-colors"
-          >
-            순서 바꾸기
-          </button>
+        {/* 카테고리 추가하기 */}
+        {availableCategories.length > 0 && (
+          <div className="w-full">
+            <p className="text-sm text-muted mb-3">카테고리 추가하기</p>
+            <div className="flex flex-wrap gap-2">
+              {availableCategories.map((cat) => (
+                <button
+                  key={cat.key}
+                  onClick={() => {
+                    setEditingCategory(cat.key);
+                    setEditItems([]);
+                  }}
+                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-full bg-card border border-pastel-purple/20 text-sm font-medium hover:border-pastel-purple/50 hover:shadow-md hover:scale-[1.03] active:scale-[0.97] transition-all duration-200"
+                >
+                  {cat.emoji} {cat.label}
+                  <span className="text-pastel-purple ml-0.5">+</span>
+                </button>
+              ))}
+              <div className="flex items-center gap-1.5 w-full mt-1">
+                <input
+                  value={customCategory}
+                  onChange={(e) => setCustomCategory(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && customCategory.trim()) {
+                      const key = `custom_${customCategory.trim()}`;
+                      if (!profile[key]) {
+                        setEditingCategory(key);
+                        setEditItems([]);
+                      }
+                      setCustomCategory("");
+                    }
+                  }}
+                  placeholder="원하는 카테고리를 만들어봐요"
+                  maxLength={20}
+                  className="flex-1 px-4 py-2.5 rounded-full bg-card border border-pastel-mint/30 text-sm focus:outline-none focus:border-pastel-mint"
+                />
+                <button
+                  onClick={() => {
+                    if (customCategory.trim()) {
+                      const key = `custom_${customCategory.trim()}`;
+                      if (!profile[key]) {
+                        setEditingCategory(key);
+                        setEditItems([]);
+                      }
+                      setCustomCategory("");
+                    }
+                  }}
+                  className="px-3 py-2.5 rounded-full bg-pastel-mint/20 border border-pastel-mint/30 text-pastel-mint text-sm font-medium"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          </div>
         )}
+
+        {/* 순위 보기 */}
+        <button
+          onClick={openRanking}
+          className="w-full py-3 rounded-2xl bg-pastel-yellow/30 border border-pastel-yellow/50 text-foreground font-medium hover:bg-pastel-yellow/40 transition-colors text-sm"
+        >
+          🏆 순위 보기
+        </button>
 
         {/* 링크 공유 버튼 */}
         {addedCategories.length > 0 && (
@@ -660,22 +765,6 @@ export default function Dashboard() {
                     className="flex-1 px-4 py-3 rounded-2xl border border-pastel-purple/30 bg-background text-foreground text-sm focus:outline-none focus:border-pastel-purple"
                     autoFocus
                   />
-                  <button
-                    onClick={() => {
-                      if (editInput.trim()) {
-                        const newItem: CardItem = { text: editInput.trim() };
-                        if (editLink.trim()) newItem.link = editLink.trim();
-                        if (editImage.trim()) newItem.image = editImage.trim();
-                        setEditItems([...editItems, newItem]);
-                        setEditInput("");
-                        setEditLink("");
-                        setEditImage("");
-                      }
-                    }}
-                    className="px-4 py-3 rounded-2xl bg-pastel-purple/20 text-pastel-purple font-medium hover:bg-pastel-purple/30 transition-colors"
-                  >
-                    +
-                  </button>
                 </div>
                 <div className="flex gap-2">
                   <input
@@ -683,33 +772,82 @@ export default function Dashboard() {
                     onChange={(e) => { setEditLink(e.target.value); if (e.target.value) setEditImage(""); }}
                     placeholder="🔗 링크 (선택)"
                     className={`flex-1 px-3 py-2 rounded-xl border text-xs focus:outline-none ${editLink ? "border-pastel-purple/40 bg-pastel-purple/5" : "border-pastel-purple/20 bg-background"} ${editImage ? "opacity-40 pointer-events-none" : ""}`}
+                    disabled={!!editImage}
                   />
-                  <input
-                    value={editImage}
-                    onChange={(e) => { setEditImage(e.target.value); if (e.target.value) setEditLink(""); }}
-                    placeholder="🖼️ 이미지 URL (선택)"
-                    className={`flex-1 px-3 py-2 rounded-xl border text-xs focus:outline-none ${editImage ? "border-pastel-mint/40 bg-pastel-mint/5" : "border-pastel-purple/20 bg-background"} ${editLink ? "opacity-40 pointer-events-none" : ""}`}
-                  />
+                  {editImage ? (
+                    <div className="flex items-center gap-1">
+                      <img src={editImage} alt="" className="w-8 h-8 rounded-lg object-cover" />
+                      <button onClick={() => setEditImage("")} className="text-xs text-foreground/30 hover:text-red-400">✕</button>
+                    </div>
+                  ) : (
+                    <label className={`px-3 py-2 rounded-xl border text-xs cursor-pointer transition-colors ${editLink ? "opacity-40 pointer-events-none border-pastel-purple/20" : "border-pastel-mint/30 bg-pastel-mint/10 hover:bg-pastel-mint/20 text-pastel-mint"}`}>
+                      {uploadingCardImage ? "..." : "🖼️ 사진"}
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        className="hidden"
+                        disabled={!!editLink}
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file || !user) return;
+                          setUploadingCardImage(true);
+                          try {
+                            const compressed = await compressImage(file);
+                            const storage = getFirebaseStorage();
+                            const path = `card-images/${user.uid}/${Date.now()}`;
+                            const storageRef = ref(storage, path);
+                            await uploadBytes(storageRef, compressed, { contentType: "image/webp" });
+                            const url = await getDownloadURL(storageRef);
+                            setEditImage(url);
+                            setEditLink("");
+                          } catch {
+                            alert("이미지 업로드에 실패했습니다.");
+                          } finally {
+                            setUploadingCardImage(false);
+                            e.target.value = "";
+                          }
+                        }}
+                      />
+                    </label>
+                  )}
                 </div>
               </div>
 
-              <button
-                onClick={() => {
-                  if (editItems.length > 0) {
-                    saveCategory(editingCategory, editItems);
-                  } else {
-                    removeCategory(editingCategory);
-                  }
-                  setEditingCategory(null);
-                  setEditInput("");
-                  setEditItems([]);
-                  setEditLink("");
-                  setEditImage("");
-                }}
-                className="w-full mt-4 py-3 rounded-2xl bg-gradient-to-r from-pastel-purple to-pastel-pink text-white font-medium hover:shadow-lg transition-all"
-              >
-                나가기
-              </button>
+              <div className="flex gap-2 mt-4">
+                <button
+                  onClick={() => {
+                    if (editItems.length > 0) {
+                      saveCategory(editingCategory, editItems);
+                    } else {
+                      removeCategory(editingCategory);
+                    }
+                    setEditingCategory(null);
+                    setEditInput("");
+                    setEditItems([]);
+                    setEditLink("");
+                    setEditImage("");
+                  }}
+                  className="flex-1 py-3 rounded-2xl bg-gradient-to-r from-pastel-purple to-pastel-pink text-white font-medium hover:shadow-lg transition-all"
+                >
+                  나가기
+                </button>
+                <button
+                  onClick={() => {
+                    if (editInput.trim()) {
+                      const newItem: CardItem = { text: editInput.trim() };
+                      if (editLink.trim()) newItem.link = editLink.trim();
+                      if (editImage.trim()) newItem.image = editImage.trim();
+                      setEditItems([...editItems, newItem]);
+                      setEditInput("");
+                      setEditLink("");
+                      setEditImage("");
+                    }
+                  }}
+                  className="flex-1 py-3 rounded-2xl bg-pastel-purple/20 text-pastel-purple font-medium hover:bg-pastel-purple/30 transition-colors"
+                >
+                  추가하기
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -834,6 +972,197 @@ export default function Dashboard() {
                 <div className="w-64 h-64 rounded-full bg-gradient-to-br from-pastel-pink to-pastel-purple border-4 border-white shadow-2xl" />
               );
             })()}
+          </div>
+        )}
+
+        {/* ===== 설정 모달 ===== */}
+        {showSettings && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-6">
+            <div className="bg-card rounded-3xl p-6 w-full max-w-sm shadow-xl">
+              <h3 className="text-base font-semibold text-center mb-4">설정</h3>
+
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={() => {
+                    setShowSettings(false);
+                    handleLogout();
+                  }}
+                  className="w-full px-4 py-3 rounded-2xl bg-pastel-purple/10 border border-pastel-purple/20 text-sm text-foreground hover:bg-pastel-purple/20 transition-colors text-left"
+                >
+                  로그아웃
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!user) return;
+                    const ok = confirm("정말 탈퇴하시겠어요? 모든 데이터가 삭제됩니다.");
+                    if (!ok) return;
+                    try {
+                      const { deleteDoc } = await import("firebase/firestore");
+                      await deleteDoc(doc(db, "users", user.uid));
+                      await user.delete();
+                      router.replace("/");
+                    } catch {
+                      alert("탈퇴에 실패했습니다. 다시 로그인 후 시도해주세요.");
+                    }
+                  }}
+                  className="w-full px-4 py-3 rounded-2xl bg-red-50 border border-red-200 text-sm text-red-400 hover:bg-red-100 transition-colors text-left"
+                >
+                  계정 탈퇴
+                </button>
+                <button
+                  onClick={() => {
+                    setShowSettings(false);
+                    setShowTerms(true);
+                  }}
+                  className="w-full px-4 py-3 rounded-2xl bg-pastel-purple/10 border border-pastel-purple/20 text-sm text-foreground hover:bg-pastel-purple/20 transition-colors text-left"
+                >
+                  이용약관 보기
+                </button>
+              </div>
+
+              <button
+                onClick={() => setShowSettings(false)}
+                className="w-full mt-4 py-3 rounded-2xl bg-gradient-to-r from-pastel-purple to-pastel-pink text-white font-medium hover:shadow-lg transition-all"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ===== 순위 모달 ===== */}
+        {showRanking && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-6">
+            <div className="bg-card rounded-3xl p-6 w-full max-w-sm shadow-xl max-h-[80vh] flex flex-col">
+              <h3 className="text-base font-semibold text-center mb-3">🏆 순위</h3>
+
+              <div className="flex gap-2 mb-4">
+                <button
+                  onClick={() => setRankingTab("views")}
+                  className={`flex-1 py-2 rounded-xl text-sm font-medium transition-colors ${rankingTab === "views" ? "bg-pastel-purple/20 text-pastel-purple" : "bg-background text-muted hover:bg-pastel-purple/10"}`}
+                >
+                  🔮 조회수
+                </button>
+                <button
+                  onClick={() => setRankingTab("likes")}
+                  className={`flex-1 py-2 rounded-xl text-sm font-medium transition-colors ${rankingTab === "likes" ? "bg-pastel-pink/20 text-pastel-pink" : "bg-background text-muted hover:bg-pastel-pink/10"}`}
+                >
+                  🩷 좋아요
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto flex flex-col gap-2">
+                {loadingRanking ? (
+                  <div className="flex justify-center py-8">
+                    <div className="w-6 h-6 rounded-full border-2 border-pastel-purple border-t-transparent animate-spin" />
+                  </div>
+                ) : (
+                  [...rankingList]
+                    .sort((a, b) => rankingTab === "views" ? b.views - a.views : b.likes - a.likes)
+                    .map((u, i) => {
+                      const rowColor = ROW_COLORS[i % ROW_COLORS.length];
+                      const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${i + 1}`;
+                      return (
+                        <a
+                          key={u.tag}
+                          href={`/u/${u.tag}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl ${rowColor.color} border ${rowColor.border} hover:brightness-95 transition-all`}
+                        >
+                          <span className="w-6 text-center text-sm font-bold shrink-0">{medal}</span>
+                          {u.photoURL ? (
+                            <img src={u.photoURL} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" referrerPolicy="no-referrer" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pastel-pink to-pastel-purple shrink-0" />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{u.username} <span className="text-pastel-purple text-xs font-normal">#{u.tag}</span></p>
+                            <p className="text-[10px] text-muted truncate">{u.displayName}</p>
+                          </div>
+                          <span className="text-sm font-semibold text-pastel-purple shrink-0">
+                            {rankingTab === "views" ? u.views : u.likes}
+                          </span>
+                        </a>
+                      );
+                    })
+                )}
+              </div>
+
+              <button
+                onClick={() => setShowRanking(false)}
+                className="w-full mt-4 py-3 rounded-2xl bg-gradient-to-r from-pastel-purple to-pastel-pink text-white font-medium hover:shadow-lg transition-all"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ===== 이용약관 모달 ===== */}
+        {showTerms && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-6">
+            <div className="bg-card rounded-3xl p-6 w-full max-w-sm shadow-xl max-h-[80vh] overflow-y-auto">
+              <h3 className="text-base font-semibold text-center mb-4">이용약관</h3>
+              <div className="text-xs text-foreground/70 leading-relaxed flex flex-col gap-3">
+                <div>
+                  <p className="font-semibold text-foreground mb-1">제1조 (목적)</p>
+                  <p>본 약관은 profile.me(이하 &quot;서비스&quot;)의 이용 조건 및 절차, 이용자와 서비스 제공자의 권리·의무를 규정함을 목적으로 합니다.</p>
+                </div>
+                <div>
+                  <p className="font-semibold text-foreground mb-1">제2조 (정의)</p>
+                  <p>① &quot;서비스&quot;란 사용자가 자신의 취향과 관심사를 프로필로 만들어 공유할 수 있는 웹 애플리케이션을 말합니다.</p>
+                  <p>② &quot;이용자&quot;란 Google 계정으로 로그인하여 서비스를 이용하는 자를 말합니다.</p>
+                </div>
+                <div>
+                  <p className="font-semibold text-foreground mb-1">제3조 (개인정보 수집 및 이용)</p>
+                  <p>서비스는 Google 로그인을 통해 아래 정보를 수집합니다.</p>
+                  <p className="mt-1">• 이름 (표시명)</p>
+                  <p>• 이메일 주소</p>
+                  <p>• 프로필 사진 URL</p>
+                  <p className="mt-1">수집된 정보는 프로필 표시 및 서비스 운영 목적으로만 사용되며, 제3자에게 제공하지 않습니다.</p>
+                </div>
+                <div>
+                  <p className="font-semibold text-foreground mb-1">제4조 (이용자의 의무)</p>
+                  <p>① 이용자는 타인의 권리를 침해하는 콘텐츠를 게시해서는 안 됩니다.</p>
+                  <p>② 이용자는 서비스를 부정한 목적으로 사용해서는 안 됩니다.</p>
+                  <p>③ 이용자가 업로드한 콘텐츠(사진, 텍스트 등)에 대한 책임은 이용자 본인에게 있습니다.</p>
+                </div>
+                <div>
+                  <p className="font-semibold text-foreground mb-1">제5조 (서비스 제공 및 변경)</p>
+                  <p>① 서비스는 무료로 제공되며, 사전 공지 후 내용이 변경될 수 있습니다.</p>
+                  <p>② 서비스 제공자는 천재지변, 기술적 장애 등 불가피한 사유로 서비스를 일시 중단할 수 있습니다.</p>
+                </div>
+                <div>
+                  <p className="font-semibold text-foreground mb-1">제6조 (계정 탈퇴 및 데이터 삭제)</p>
+                  <p>이용자는 언제든지 설정에서 계정 탈퇴가 가능하며, 탈퇴 시 모든 개인정보와 프로필 데이터가 즉시 삭제됩니다.</p>
+                </div>
+                <div>
+                  <p className="font-semibold text-foreground mb-1">제7조 (면책)</p>
+                  <p>서비스 제공자는 이용자가 서비스 내에 게시한 정보의 신뢰도, 정확성에 대해 책임을 지지 않습니다.</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowTerms(false)}
+                className="w-full mt-4 py-3 rounded-2xl bg-gradient-to-r from-pastel-purple to-pastel-pink text-white font-medium hover:shadow-lg transition-all"
+              >
+                확인
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ===== 카드 이미지 확대 모달 ===== */}
+        {cardImageZoom && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-6"
+            onClick={() => setCardImageZoom(null)}
+          >
+            <img
+              src={cardImageZoom}
+              alt=""
+              className="max-w-[80vw] max-h-[80vh] rounded-2xl object-contain shadow-2xl"
+            />
           </div>
         )}
 
@@ -983,61 +1312,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* ===== 대기 중인 카테고리들 (박스 밖) ===== */}
-        {availableCategories.length > 0 && (
-          <div className="w-full">
-            <p className="text-sm text-muted mb-3">카테고리 추가하기</p>
-            <div className="flex flex-wrap gap-2">
-              {availableCategories.map((cat) => (
-                <button
-                  key={cat.key}
-                  onClick={() => {
-                    setEditingCategory(cat.key);
-                    setEditItems([]);
-                  }}
-                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-full bg-card border border-pastel-purple/20 text-sm font-medium hover:border-pastel-purple/50 hover:shadow-md hover:scale-[1.03] active:scale-[0.97] transition-all duration-200"
-                >
-                  {cat.emoji} {cat.label}
-                  <span className="text-pastel-purple ml-0.5">+</span>
-                </button>
-              ))}
-              <div className="flex items-center gap-1.5 w-full mt-1">
-                <input
-                  value={customCategory}
-                  onChange={(e) => setCustomCategory(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && customCategory.trim()) {
-                      const key = `custom_${customCategory.trim()}`;
-                      if (!profile[key]) {
-                        setEditingCategory(key);
-                        setEditItems([]);
-                      }
-                      setCustomCategory("");
-                    }
-                  }}
-                  placeholder="원하는 카테고리를 만들어봐요"
-                  maxLength={20}
-                  className="flex-1 px-4 py-2.5 rounded-full bg-card border border-pastel-mint/30 text-sm focus:outline-none focus:border-pastel-mint"
-                />
-                <button
-                  onClick={() => {
-                    if (customCategory.trim()) {
-                      const key = `custom_${customCategory.trim()}`;
-                      if (!profile[key]) {
-                        setEditingCategory(key);
-                        setEditItems([]);
-                      }
-                      setCustomCategory("");
-                    }
-                  }}
-                  className="px-3 py-2.5 rounded-full bg-pastel-mint/20 border border-pastel-mint/30 text-pastel-mint text-sm font-medium"
-                >
-                  +
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </main>
   );

@@ -80,6 +80,7 @@ export default function PublicProfile() {
   const [commentText, setCommentText] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [isFriend, setIsFriend] = useState(false);
+  const [cardImageZoom, setCardImageZoom] = useState<string | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => setCurrentUser(u));
@@ -354,12 +355,13 @@ export default function PublicProfile() {
                             className={`flex items-center gap-2 text-sm px-3 py-2 rounded-2xl ${rowColor.color}`}
                           >
                             <span className="w-5 h-5 flex items-center justify-center rounded-full bg-pastel-purple/20 text-pastel-purple text-xs font-bold shrink-0">{i + 1}</span>
-                            {item.image ? (
-                              <img src={item.image} alt={item.text} className="w-8 h-8 rounded-lg object-cover shrink-0" />
-                            ) : null}
-                            <span className="text-foreground/80 flex-1">{item.link ? (
-                              <a href={item.link} target="_blank" rel="noopener noreferrer" className="underline text-pastel-purple hover:text-pastel-purple/70">{item.text}</a>
-                            ) : item.text}</span>
+                            <span className="text-foreground/80 flex-1">{item.text}</span>
+                            {item.image && (
+                              <img src={item.image} alt={item.text} className="w-8 h-8 rounded-lg object-cover shrink-0 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setCardImageZoom(item.image!)} />
+                            )}
+                            {item.link && (
+                              <a href={item.link.match(/^https?:\/\//) ? item.link : `https://${item.link}`} target="_blank" rel="noopener noreferrer" className="text-[10px] text-pastel-purple hover:text-pastel-purple/70 shrink-0">링크 이동</a>
+                            )}
                           </div>
                           );
                         }
@@ -426,6 +428,19 @@ export default function PublicProfile() {
           </div>
         )}
 
+        {/* 카드 이미지 확대 모달 */}
+        {cardImageZoom && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-6"
+            onClick={() => setCardImageZoom(null)}
+          >
+            <img
+              src={cardImageZoom}
+              alt=""
+              className="max-w-[80vw] max-h-[80vh] rounded-2xl object-contain shadow-2xl"
+            />
+          </div>
+        )}
       </div>
     </main>
   );

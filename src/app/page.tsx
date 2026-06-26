@@ -7,7 +7,8 @@ import { useRouter } from "next/navigation";
 
 export default function Home() {
   const [loading, setLoading] = useState(false);
-  const [agreed, setAgreed] = useState(true);
+  const [agreed, setAgreed] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
   const router = useRouter();
 
   const handleGoogleLogin = async () => {
@@ -108,17 +109,76 @@ export default function Home() {
         </button>
 
         {/* 약관 동의 */}
-        <label className="flex items-start gap-2 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={agreed}
-            onChange={(e) => setAgreed(e.target.checked)}
-            className="mt-0.5 w-4 h-4 accent-pastel-purple rounded"
-          />
-          <span className="text-muted text-xs leading-relaxed">
-            profile.me 서비스 이용을 위해 Google 계정 정보(이름, 이메일, 프로필 사진)의 수집·이용에 동의합니다.
-          </span>
-        </label>
+        <div className="flex items-center gap-2">
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={agreed}
+              onChange={(e) => setAgreed(e.target.checked)}
+              className="w-4 h-4 accent-pastel-purple rounded"
+            />
+            <span className="text-muted text-xs">이용약관에 동의합니다</span>
+          </label>
+          <button
+            onClick={() => setShowTerms(true)}
+            className="text-xs text-pastel-purple hover:text-pastel-purple/70 transition-colors underline"
+          >
+            자세히보기
+          </button>
+        </div>
+
+        {/* 이용약관 모달 */}
+        {showTerms && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-6">
+            <div className="bg-card rounded-3xl p-6 w-full max-w-sm shadow-xl max-h-[80vh] overflow-y-auto">
+              <h3 className="text-base font-semibold text-center mb-4">이용약관</h3>
+              <div className="text-xs text-foreground/70 leading-relaxed flex flex-col gap-3">
+                <div>
+                  <p className="font-semibold text-foreground mb-1">제1조 (목적)</p>
+                  <p>본 약관은 profile.me(이하 &quot;서비스&quot;)의 이용 조건 및 절차, 이용자와 서비스 제공자의 권리·의무를 규정함을 목적으로 합니다.</p>
+                </div>
+                <div>
+                  <p className="font-semibold text-foreground mb-1">제2조 (정의)</p>
+                  <p>① &quot;서비스&quot;란 사용자가 자신의 취향과 관심사를 프로필로 만들어 공유할 수 있는 웹 애플리케이션을 말합니다.</p>
+                  <p>② &quot;이용자&quot;란 Google 계정으로 로그인하여 서비스를 이용하는 자를 말합니다.</p>
+                </div>
+                <div>
+                  <p className="font-semibold text-foreground mb-1">제3조 (개인정보 수집 및 이용)</p>
+                  <p>서비스는 Google 로그인을 통해 아래 정보를 수집합니다.</p>
+                  <p className="mt-1">• 이름 (표시명)</p>
+                  <p>• 이메일 주소</p>
+                  <p>• 프로필 사진 URL</p>
+                  <p className="mt-1">수집된 정보는 프로필 표시 및 서비스 운영 목적으로만 사용되며, 제3자에게 제공하지 않습니다.</p>
+                </div>
+                <div>
+                  <p className="font-semibold text-foreground mb-1">제4조 (이용자의 의무)</p>
+                  <p>① 이용자는 타인의 권리를 침해하는 콘텐츠를 게시해서는 안 됩니다.</p>
+                  <p>② 이용자는 서비스를 부정한 목적으로 사용해서는 안 됩니다.</p>
+                  <p>③ 이용자가 업로드한 콘텐츠(사진, 텍스트 등)에 대한 책임은 이용자 본인에게 있습니다.</p>
+                </div>
+                <div>
+                  <p className="font-semibold text-foreground mb-1">제5조 (서비스 제공 및 변경)</p>
+                  <p>① 서비스는 무료로 제공되며, 사전 공지 후 내용이 변경될 수 있습니다.</p>
+                  <p>② 서비스 제공자는 천재지변, 기술적 장애 등 불가피한 사유로 서비스를 일시 중단할 수 있습니다.</p>
+                </div>
+                <div>
+                  <p className="font-semibold text-foreground mb-1">제6조 (계정 탈퇴 및 데이터 삭제)</p>
+                  <p>이용자는 언제든지 설정에서 계정 탈퇴가 가능하며, 탈퇴 시 모든 개인정보와 프로필 데이터가 즉시 삭제됩니다.</p>
+                </div>
+                <div>
+                  <p className="font-semibold text-foreground mb-1">제7조 (면책)</p>
+                  <p>서비스 제공자는 이용자가 서비스 내에 게시한 정보의 신뢰도, 정확성에 대해 책임을 지지 않습니다.</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowTerms(false)}
+                className="w-full mt-4 py-3 rounded-2xl bg-gradient-to-r from-pastel-purple to-pastel-pink text-white font-medium hover:shadow-lg transition-all"
+              >
+                확인
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </main>
   );
