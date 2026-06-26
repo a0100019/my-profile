@@ -310,10 +310,10 @@ export default function Dashboard() {
             <span className="text-pastel-blue">profile</span>
           </h1>
           <button
-            onClick={handleLogout}
+            onClick={openFriends}
             className="absolute right-0 text-sm text-muted hover:text-foreground transition-colors"
           >
-            로그아웃
+            👫 친구
           </button>
         </div>
 
@@ -362,9 +362,6 @@ export default function Dashboard() {
                 </button>
                 <button onClick={openLikedProfiles} className="hover:text-pastel-purple transition-colors">
                   누른 좋아요 💌
-                </button>
-                <button onClick={openFriends} className="hover:text-pastel-mint transition-colors">
-                  친구 👫
                 </button>
               </div>
             </div>
