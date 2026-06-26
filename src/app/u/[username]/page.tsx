@@ -79,7 +79,7 @@ export default function PublicProfile() {
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentText, setCommentText] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [isFriend, setIsFriend] = useState(false);
+  const [friendStatus, setFriendStatus] = useState<"none" | "pending" | "friend">("none");
   const [cardImageZoom, setCardImageZoom] = useState<string | null>(null);
 
   useEffect(() => {
@@ -111,7 +111,13 @@ export default function PublicProfile() {
           const mySnap = await getDoc(doc(db, "users", currentUser.uid));
           if (mySnap.exists()) {
             const myData = mySnap.data();
-            setIsFriend(((myData.friends as string[]) || []).includes(userId));
+            if (((myData.friends as string[]) || []).includes(userId)) {
+              setFriendStatus("friend");
+            } else if (((myData.sentRequests as string[]) || []).includes(userId)) {
+              setFriendStatus("pending");
+            } else {
+              setFriendStatus("none");
+            }
           }
         }
 
@@ -190,14 +196,18 @@ export default function PublicProfile() {
     const myRef = doc(db, "users", currentUser.uid);
     const targetRef = doc(db, "users", profileUserId);
 
-    if (isFriend) {
+    if (friendStatus === "friend") {
       await updateDoc(myRef, { friends: arrayRemove(profileUserId) });
       await updateDoc(targetRef, { friends: arrayRemove(currentUser.uid) });
-      setIsFriend(false);
+      setFriendStatus("none");
+    } else if (friendStatus === "pending") {
+      await updateDoc(myRef, { sentRequests: arrayRemove(profileUserId) });
+      await updateDoc(targetRef, { friendRequests: arrayRemove(currentUser.uid) });
+      setFriendStatus("none");
     } else {
-      await updateDoc(myRef, { friends: arrayUnion(profileUserId) });
-      await updateDoc(targetRef, { friends: arrayUnion(currentUser.uid) });
-      setIsFriend(true);
+      await updateDoc(myRef, { sentRequests: arrayUnion(profileUserId) });
+      await updateDoc(targetRef, { friendRequests: arrayUnion(currentUser.uid) });
+      setFriendStatus("pending");
     }
   };
 
@@ -288,10 +298,10 @@ export default function PublicProfile() {
             {currentUser && currentUser.uid !== profileUserId && (
               <button
                 onClick={handleFriend}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-full transition-all ${isFriend ? "bg-pastel-purple/25 text-pastel-purple" : "hover:bg-pastel-purple/10"}`}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-full transition-all ${friendStatus === "friend" ? "bg-pastel-purple/25 text-pastel-purple" : friendStatus === "pending" ? "bg-pastel-yellow/25 text-pastel-yellow" : "hover:bg-pastel-purple/10"}`}
               >
-                <span>{isFriend ? "👫" : "🤝"}</span>
-                <span>{isFriend ? "친구" : "친구 추가"}</span>
+                <span>{friendStatus === "friend" ? "👫" : friendStatus === "pending" ? "⏳" : "🤝"}</span>
+                <span>{friendStatus === "friend" ? "친구" : friendStatus === "pending" ? "대기 중" : "친구 추가"}</span>
               </button>
             )}
           </div>
