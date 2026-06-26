@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { doc, getDoc, getDocFromServer, setDoc, runTransaction } from "firebase/firestore";
+import { doc, getDoc, getDocFromServer, setDoc, updateDoc, runTransaction, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
 import type { User } from "firebase/auth";
@@ -120,6 +120,7 @@ export default function Dashboard() {
             tag,
           });
         }
+        await updateDoc(docRef, { lastActiveAt: serverTimestamp() });
       } catch (error) {
         console.error("프로필 로드 실패:", error);
       }
