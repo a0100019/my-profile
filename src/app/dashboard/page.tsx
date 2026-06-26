@@ -69,6 +69,8 @@ export default function Dashboard() {
   const [likedByList, setLikedByList] = useState<{username: string; displayName: string; tag: number}[]>([]);
   const [likedProfilesList, setLikedProfilesList] = useState<{username: string; displayName: string; tag: number}[]>([]);
   const [loadingList, setLoadingList] = useState(false);
+  const [showFriends, setShowFriends] = useState(false);
+  const [friendsList, setFriendsList] = useState<{username: string; displayName: string; tag: number; photoURL?: string}[]>([]);
   const [reorderingCategories, setReorderingCategories] = useState(false);
   const [categoryOrder, setCategoryOrder] = useState<string[]>([]);
   const [dragCatIndex, setDragCatIndex] = useState<number | null>(null);
@@ -201,6 +203,22 @@ export default function Dashboard() {
     setLoadingList(false);
   };
 
+  const openFriends = async () => {
+    setLoadingList(true);
+    setShowFriends(true);
+    const list = (profile as Record<string, unknown>).friends as string[] || [];
+    const results: {username: string; displayName: string; tag: number; photoURL?: string}[] = [];
+    for (const uid of list) {
+      const snap = await getDoc(doc(db, "users", uid));
+      if (snap.exists()) {
+        const d = snap.data();
+        results.push({ username: d.username || "", displayName: d.displayName || "", tag: d.tag || 0, photoURL: d.photoURL || "" });
+      }
+    }
+    setFriendsList(results);
+    setLoadingList(false);
+  };
+
   const handleLogout = async () => {
     await signOut(auth);
     router.push("/");
@@ -304,6 +322,9 @@ export default function Dashboard() {
                 </button>
                 <button onClick={openLikedProfiles} className="hover:text-pastel-purple transition-colors">
                   누른 좋아요 💌
+                </button>
+                <button onClick={openFriends} className="hover:text-pastel-mint transition-colors">
+                  친구 👫
                 </button>
               </div>
             </div>
@@ -748,6 +769,44 @@ export default function Dashboard() {
               )}
               <button
                 onClick={() => setShowLikedProfiles(false)}
+                className="w-full py-3 rounded-2xl bg-gradient-to-r from-pastel-purple to-pastel-pink text-white font-medium"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ===== 친구 목록 모달 ===== */}
+        {showFriends && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-6">
+            <div className="bg-card rounded-3xl p-6 w-full max-w-sm shadow-xl">
+              <h3 className="text-base font-semibold text-center mb-4">👫 내 친구</h3>
+              {loadingList ? (
+                <div className="flex justify-center py-6">
+                  <div className="w-6 h-6 rounded-full border-2 border-pastel-purple border-t-transparent animate-spin" />
+                </div>
+              ) : friendsList.length === 0 ? (
+                <p className="text-sm text-muted text-center py-4">아직 친구가 없어요</p>
+              ) : (
+                <div className="flex flex-col gap-2 max-h-64 overflow-y-auto mb-4">
+                  {friendsList.map((u, i) => (
+                    <a key={i} href={`/u/${u.tag}`} target="_blank" rel="noopener noreferrer" className={`flex items-center gap-3 px-4 py-3 rounded-2xl ${ROW_COLORS[i % ROW_COLORS.length].color} border ${ROW_COLORS[i % ROW_COLORS.length].border} hover:brightness-95 transition-all`}>
+                      {u.photoURL ? (
+                        <img src={u.photoURL} alt="" className="w-8 h-8 rounded-full border border-pastel-purple/20 shrink-0" referrerPolicy="no-referrer" />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pastel-pink to-pastel-purple shrink-0" />
+                      )}
+                      <div>
+                        <p className="text-sm font-medium">{u.username} <span className="text-pastel-purple text-xs">#{u.tag}</span></p>
+                        <p className="text-xs text-muted">{u.displayName}</p>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              )}
+              <button
+                onClick={() => setShowFriends(false)}
                 className="w-full py-3 rounded-2xl bg-gradient-to-r from-pastel-purple to-pastel-pink text-white font-medium"
               >
                 닫기

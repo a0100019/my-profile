@@ -79,6 +79,7 @@ export default function PublicProfile() {
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentText, setCommentText] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [isFriend, setIsFriend] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => setCurrentUser(u));
@@ -102,10 +103,15 @@ export default function PublicProfile() {
         setViews((userData.views as number) || 0);
         setLikes((userData.likes as number) || 0);
 
-        // 내가 이미 좋아요 눌렀는지 확인
         if (currentUser) {
           const likedList = (userData.likedBy as string[]) || [];
           setLiked(likedList.includes(currentUser.uid));
+
+          const mySnap = await getDoc(doc(db, "users", currentUser.uid));
+          if (mySnap.exists()) {
+            const myData = mySnap.data();
+            setIsFriend(((myData.friends as string[]) || []).includes(userId));
+          }
         }
 
         // 조회수 증가 (10초 쿨다운)
@@ -175,6 +181,22 @@ export default function PublicProfile() {
       await updateDoc(myRef, { likedProfiles: arrayUnion(profileUserId) });
       setLikes((prev) => prev + 1);
       setLiked(true);
+    }
+  };
+
+  const handleFriend = async () => {
+    if (!currentUser || !profileUserId || currentUser.uid === profileUserId) return;
+    const myRef = doc(db, "users", currentUser.uid);
+    const targetRef = doc(db, "users", profileUserId);
+
+    if (isFriend) {
+      await updateDoc(myRef, { friends: arrayRemove(profileUserId) });
+      await updateDoc(targetRef, { friends: arrayRemove(currentUser.uid) });
+      setIsFriend(false);
+    } else {
+      await updateDoc(myRef, { friends: arrayUnion(profileUserId) });
+      await updateDoc(targetRef, { friends: arrayUnion(currentUser.uid) });
+      setIsFriend(true);
     }
   };
 
@@ -252,7 +274,7 @@ export default function PublicProfile() {
             </div>
           </div>
 
-          <div className="flex items-center justify-center gap-4 text-xs text-muted mb-2">
+          <div className="flex items-center justify-center gap-3 text-xs text-muted mb-2">
             <span className="flex items-center gap-1">🔮 조회수 {views}</span>
             <button
               onClick={handleLike}
@@ -262,6 +284,15 @@ export default function PublicProfile() {
               <span>{liked ? "🩷" : "🤍"}</span>
               <span>좋아요 {likes}</span>
             </button>
+            {currentUser && currentUser.uid !== profileUserId && (
+              <button
+                onClick={handleFriend}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-full transition-all ${isFriend ? "bg-pastel-purple/25 text-pastel-purple" : "hover:bg-pastel-purple/10"}`}
+              >
+                <span>{isFriend ? "👫" : "🤝"}</span>
+                <span>{isFriend ? "친구" : "친구 추가"}</span>
+              </button>
+            )}
           </div>
 
           {(profile?.bio || (profile?.infoFields?.length ?? 0) > 0) && (
