@@ -7,9 +7,14 @@ import { useRouter } from "next/navigation";
 
 export default function Home() {
   const [loading, setLoading] = useState(false);
+  const [agreed, setAgreed] = useState(true);
   const router = useRouter();
 
   const handleGoogleLogin = async () => {
+    if (!agreed) {
+      alert("약관에 동의해주세요.");
+      return;
+    }
     setLoading(true);
     try {
       await signInWithPopup(getFirebaseAuth(), googleProvider);
@@ -102,9 +107,18 @@ export default function Home() {
           {loading ? "로그인 중..." : "Google로 시작하기"}
         </button>
 
-        <p className="text-muted text-xs text-center">
-          로그인하면 나만의 프로필 링크를 받을 수 있어요
-        </p>
+        {/* 약관 동의 */}
+        <label className="flex items-start gap-2 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={agreed}
+            onChange={(e) => setAgreed(e.target.checked)}
+            className="mt-0.5 w-4 h-4 accent-pastel-purple rounded"
+          />
+          <span className="text-muted text-xs leading-relaxed">
+            profile.me 서비스 이용을 위해 Google 계정 정보(이름, 이메일, 프로필 사진)의 수집·이용에 동의합니다.
+          </span>
+        </label>
       </div>
     </main>
   );
