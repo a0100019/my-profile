@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { doc, getDoc, getDocFromServer, setDoc, updateDoc, runTransaction, serverTimestamp, collection, getDocs } from "firebase/firestore";
+import { doc, getDoc, getDocFromServer, setDoc, updateDoc, runTransaction, serverTimestamp, collection, getDocs, arrayUnion, arrayRemove, addDoc, query, orderBy, onSnapshot, increment, type Timestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
 import type { User } from "firebase/auth";
@@ -314,6 +314,7 @@ export default function Dashboard() {
   };
 
   const handleShare = async () => {
+    if (!userTag) return;
     const url = `${window.location.origin}/u/${userTag}`;
     await navigator.clipboard.writeText(url);
     setCopied(true);
