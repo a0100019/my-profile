@@ -79,7 +79,7 @@ export default function PublicProfile() {
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentText, setCommentText] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [friendStatus, setFriendStatus] = useState<"none" | "pending" | "received" | "friend">("none");
+  const [friendStatus, setFriendStatus] = useState<"none" | "pending" | "friend">("none");
   const [cardImageZoom, setCardImageZoom] = useState<string | null>(null);
 
   useEffect(() => {
@@ -115,8 +115,6 @@ export default function PublicProfile() {
               setFriendStatus("friend");
             } else if (((myData.sentRequests as string[]) || []).includes(userId)) {
               setFriendStatus("pending");
-            } else if (((myData.friendRequests as string[]) || []).includes(userId)) {
-              setFriendStatus("received");
             } else {
               setFriendStatus("none");
             }
@@ -297,13 +295,13 @@ export default function PublicProfile() {
               <span>{liked ? "🩷" : "🤍"}</span>
               <span>좋아요 {likes}</span>
             </button>
-            {currentUser && currentUser.uid !== profileUserId && (friendStatus === "none" || friendStatus === "pending") && (
+            {currentUser && currentUser.uid !== profileUserId && (
               <button
                 onClick={handleFriend}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-full transition-all ${friendStatus === "pending" ? "bg-pastel-yellow/25 text-pastel-yellow" : "hover:bg-pastel-purple/10"}`}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-full transition-all ${friendStatus === "friend" ? "bg-pastel-purple/25 text-pastel-purple" : friendStatus === "pending" ? "bg-pastel-yellow/25 text-pastel-yellow" : "hover:bg-pastel-purple/10"}`}
               >
-                <span>{friendStatus === "pending" ? "⏳" : "🤝"}</span>
-                <span>{friendStatus === "pending" ? "대기 중" : "친구 추가"}</span>
+                <span>{friendStatus === "friend" ? "👫" : friendStatus === "pending" ? "⏳" : "🤝"}</span>
+                <span>{friendStatus === "friend" ? "친구" : friendStatus === "pending" ? "대기 중" : "친구 추가"}</span>
               </button>
             )}
           </div>
