@@ -33,6 +33,8 @@ const ALL_CATEGORIES = [
   { key: "travel", emoji: "✈️", label: "여행" },
   { key: "game", emoji: "🎮", label: "게임" },
   { key: "drama", emoji: "📺", label: "드라마" },
+  { key: "drink", emoji: "🥤", label: "음료" },
+  { key: "comic", emoji: "📖", label: "만화" },
   { key: "pokemon", emoji: "🐾", label: "포켓몬" },
   { key: "ideal", emoji: "💕", label: "이상형" },
 ];
@@ -173,18 +175,8 @@ export default function Dashboard() {
     setProfile(newProfile);
     setExpandedCategories((prev) => { const next = new Set(prev); next.delete(categoryKey); return next; });
 
-    const saveData: Record<string, unknown> = {
-      username,
-      displayName: user.displayName,
-      photoURL: user.photoURL,
-      email: user.email,
-    };
-    ALL_CATEGORIES.forEach((cat) => {
-      if (newProfile[cat.key]) {
-        saveData[cat.key] = newProfile[cat.key];
-      }
-    });
-    await setDoc(doc(db, "users", user.uid), saveData);
+    const { deleteField } = await import("firebase/firestore");
+    await updateDoc(doc(db, "users", user.uid), { [categoryKey]: deleteField() });
   };
 
   const fetchUserList = async (uids: string[]) => {
@@ -365,12 +357,20 @@ export default function Dashboard() {
             <span className="text-foreground">.</span>
             <span className="text-pastel-blue">profile</span>
           </h1>
-          <button
-            onClick={openFriends}
-            className="absolute right-0 text-sm text-muted hover:text-foreground transition-colors"
-          >
-            👫 친구 {((profile as Record<string, unknown>).friendRequests as string[] || []).length > 0 && <span className="text-pastel-pink font-bold">•</span>}
-          </button>
+          {(() => {
+            const reqCount = ((profile as Record<string, unknown>).friendRequests as string[] || []).length;
+            const unreadMap = (profile as Record<string, unknown>).chatUnread as Record<string, number> || {};
+            const chatCount = Object.values(unreadMap).reduce((a: number, b: number) => a + b, 0);
+            const total = reqCount + chatCount;
+            return (
+              <button
+                onClick={openFriends}
+                className={`absolute right-0 text-sm transition-colors ${total > 0 ? "text-foreground font-semibold" : "text-muted hover:text-foreground"}`}
+              >
+                👫 친구{total > 0 && <span className="ml-1 bg-red-500 text-white px-1.5 py-0.5 rounded-full text-[10px] font-bold min-w-[20px] inline-flex items-center justify-center shadow-lg shadow-red-500/40 animate-bounce">{total}</span>}
+              </button>
+            );
+          })()}
         </div>
 
         {/* ===== 프로필 카드 (공유 시 이 부분만 보임) ===== */}
@@ -411,13 +411,13 @@ export default function Dashboard() {
                 </button>
               </div>
               <p className="text-sm text-muted">{displayName}</p>
-              <div className="flex items-center gap-3 text-xs text-muted mt-1">
-                <span>🔮 {(profile as Record<string, unknown>).views as number || 0}</span>
-                <button onClick={openLikedBy} className="hover:text-pastel-pink transition-colors">
-                  받은 좋아요 🩷 {(profile as Record<string, unknown>).likes as number || 0}
+              <div className="flex items-center gap-2 text-xs text-muted mt-1">
+                <span className="px-2 py-0.5 rounded-full border border-foreground/15">조회수 {(profile as Record<string, unknown>).views as number || 0}</span>
+                <button onClick={openLikedBy} className="px-2 py-0.5 rounded-full border border-foreground/15 hover:border-pastel-pink/50 transition-colors">
+                  받은 좋아요 {(profile as Record<string, unknown>).likes as number || 0}
                 </button>
-                <button onClick={openLikedProfiles} className="hover:text-pastel-purple transition-colors">
-                  누른 좋아요 💌
+                <button onClick={openLikedProfiles} className="px-2 py-0.5 rounded-full border border-foreground/15 hover:border-pastel-purple/50 transition-colors">
+                  누른 좋아요
                 </button>
               </div>
             </div>
@@ -527,6 +527,21 @@ export default function Dashboard() {
                       placeholder="내용 (예: INFP)"
                     />
                   </div>
+                  <span className="text-xs px-1 invisible">✕</span>
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={async () => {
+                      setEditingInfo(false);
+                      if (user) {
+                        await setDoc(doc(db, "users", user.uid), { bio, infoFields }, { merge: true });
+                      }
+                    }}
+                    className="flex-1 py-3 rounded-2xl bg-gradient-to-r from-pastel-purple to-pastel-pink text-white font-medium hover:shadow-lg transition-all"
+                  >
+                    완료
+                  </button>
                   <button
                     onClick={() => {
                       if (newInfoLabel.trim() && newInfoValue.trim()) {
@@ -535,23 +550,11 @@ export default function Dashboard() {
                         setNewInfoValue("");
                       }
                     }}
-                    className="px-3 py-2 rounded-xl bg-pastel-purple/20 text-pastel-purple font-medium text-sm"
+                    className="flex-1 py-3 rounded-2xl bg-pastel-purple/15 border border-pastel-purple/30 text-pastel-purple font-medium hover:bg-pastel-purple/25 transition-all"
                   >
-                    +
+                    추가하기
                   </button>
                 </div>
-
-                <button
-                  onClick={async () => {
-                    setEditingInfo(false);
-                    if (user) {
-                      await setDoc(doc(db, "users", user.uid), { bio, infoFields }, { merge: true });
-                    }
-                  }}
-                  className="w-full py-3 rounded-2xl bg-gradient-to-r from-pastel-purple to-pastel-pink text-white font-medium hover:shadow-lg transition-all"
-                >
-                  완료
-                </button>
               </div>
             </div>
           )}
@@ -641,8 +644,8 @@ export default function Dashboard() {
         {/* 카테고리 추가하기 */}
         {availableCategories.length > 0 && (
           <div className="w-full">
-            <p className="text-sm text-muted mb-3">카테고리 추가하기</p>
-            <div className="flex flex-wrap gap-2">
+            <p className="text-sm text-muted mb-3 text-center">카테고리 추가하기</p>
+            <div className="flex flex-wrap gap-2 justify-center">
               {availableCategories.map((cat) => (
                 <button
                   key={cat.key}
@@ -703,14 +706,12 @@ export default function Dashboard() {
         </button>
 
         {/* 링크 공유 버튼 */}
-        {addedCategories.length > 0 && (
-          <button
-            onClick={handleShare}
-            className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-pastel-blue to-pastel-mint text-white font-medium shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
-          >
-            {copied ? "✅ 링크가 복사되었어요!" : "🔗 내 프로필 링크 공유하기"}
-          </button>
-        )}
+        <button
+          onClick={handleShare}
+          className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-pastel-blue to-pastel-mint text-white font-medium shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
+        >
+          {copied ? "✅ 링크가 복사되었어요!" : "🔗 내 프로필 링크 공유하기"}
+        </button>
 
         {/* ===== 카테고리 설정 모달 ===== */}
         {editingCategory && (

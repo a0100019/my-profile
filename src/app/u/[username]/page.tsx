@@ -51,6 +51,8 @@ const CATEGORIES = [
   { key: "travel", emoji: "✈️", label: "여행" },
   { key: "game", emoji: "🎮", label: "게임" },
   { key: "drama", emoji: "📺", label: "드라마" },
+  { key: "drink", emoji: "🥤", label: "음료" },
+  { key: "comic", emoji: "📖", label: "만화" },
   { key: "pokemon", emoji: "🐾", label: "포켓몬" },
   { key: "ideal", emoji: "💕", label: "이상형" },
 ];
@@ -285,23 +287,21 @@ export default function PublicProfile() {
             </div>
           </div>
 
-          <div className="flex items-center justify-center gap-3 text-xs text-muted mb-2">
-            <span className="flex items-center gap-1">🔮 조회수 {views}</span>
+          <div className="flex items-center justify-center gap-1.5 text-xs text-muted mb-2">
+            <span className="px-2 py-0.5 rounded-full border border-foreground/15">조회수 {views}</span>
             <button
               onClick={handleLike}
               disabled={!currentUser}
-              className={`flex items-center gap-1 px-2 py-1 rounded-full transition-all ${liked ? "bg-pastel-pink/30 text-pastel-pink" : "hover:bg-pastel-pink/10"}`}
+              className={`px-2 py-0.5 rounded-full border transition-all ${liked ? "border-pastel-pink/50 text-pastel-pink" : "border-foreground/15 hover:border-pastel-pink/50"}`}
             >
-              <span>{liked ? "🩷" : "🤍"}</span>
-              <span>좋아요 {likes}</span>
+              좋아요 {likes}
             </button>
-            {currentUser && currentUser.uid !== profileUserId && (
+            {currentUser && currentUser.uid !== profileUserId && (friendStatus === "none" || friendStatus === "pending") && (
               <button
                 onClick={handleFriend}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-full transition-all ${friendStatus === "friend" ? "bg-pastel-purple/25 text-pastel-purple" : friendStatus === "pending" ? "bg-pastel-yellow/25 text-pastel-yellow" : "hover:bg-pastel-purple/10"}`}
+                className={`px-2 py-0.5 rounded-full border transition-all ${friendStatus === "pending" ? "border-pastel-yellow/50 text-pastel-yellow" : "border-foreground/15 hover:border-pastel-purple/50"}`}
               >
-                <span>{friendStatus === "friend" ? "👫" : friendStatus === "pending" ? "⏳" : "🤝"}</span>
-                <span>{friendStatus === "friend" ? "친구" : friendStatus === "pending" ? "대기 중" : "친구 추가"}</span>
+                {friendStatus === "pending" ? "대기 중" : "친구 추가"}
               </button>
             )}
           </div>
