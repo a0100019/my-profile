@@ -575,7 +575,7 @@ export default function Dashboard() {
                 setReorderingCategories(true);
                 setCategoryOrder(addedCategories.map((c) => c.key));
               }}
-              className="text-xs text-muted hover:text-pastel-purple transition-colors mt-2"
+              className="w-full text-center text-xs text-muted hover:text-pastel-purple transition-colors mt-2"
             >
               순서 바꾸기
             </button>
