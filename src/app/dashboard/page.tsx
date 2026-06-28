@@ -92,6 +92,11 @@ export default function Dashboard() {
   const [editingUsername, setEditingUsername] = useState(false);
   const [editName, setEditName] = useState("");
   const [editUsername, setEditUsername] = useState("");
+  const [chatTarget, setChatTarget] = useState<{uid: string; username: string; photoURL?: string} | null>(null);
+  const [chatMessages, setChatMessages] = useState<{id: string; text: string; senderUid: string; createdAt: Timestamp | null}[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [sendingChat, setSendingChat] = useState(false);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
   const defaultUsername = (user?.email?.split("@")[0] || "").slice(0, 15);
@@ -298,6 +303,54 @@ export default function Dashboard() {
       ...prev,
       friends: ((prev.friends as string[]) || []).filter((id: string) => id !== targetUid),
     }));
+  };
+
+  const getChatId = (uid1: string, uid2: string) => [uid1, uid2].sort().join("_");
+
+  const openChat = async (target: {uid: string; username: string; photoURL?: string}) => {
+    setChatTarget(target);
+    setChatInput("");
+    if (user) {
+      await updateDoc(doc(db, "users", user.uid), { [`chatUnread.${target.uid}`]: 0 });
+      setProfile((prev: ProfileData) => ({
+        ...prev,
+        chatUnread: { ...((prev.chatUnread as Record<string, number>) || {}), [target.uid]: 0 },
+      }));
+    }
+  };
+
+  useEffect(() => {
+    if (!chatTarget || !user) return;
+    const chatId = getChatId(user.uid, chatTarget.uid);
+    const messagesRef = collection(db, "chats", chatId, "messages");
+    const q = query(messagesRef, orderBy("createdAt", "asc"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const msgs = snapshot.docs.map((d) => ({
+        id: d.id,
+        text: d.data().text as string,
+        senderUid: d.data().senderUid as string,
+        createdAt: d.data().createdAt as Timestamp | null,
+      }));
+      setChatMessages(msgs);
+      setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    });
+    return () => unsubscribe();
+  }, [chatTarget, user]);
+
+  const sendChat = async () => {
+    if (!user || !chatTarget || !chatInput.trim() || sendingChat) return;
+    setSendingChat(true);
+    const chatId = getChatId(user.uid, chatTarget.uid);
+    await addDoc(collection(db, "chats", chatId, "messages"), {
+      text: chatInput.trim(),
+      senderUid: user.uid,
+      createdAt: serverTimestamp(),
+    });
+    await updateDoc(doc(db, "users", chatTarget.uid), {
+      [`chatUnread.${user.uid}`]: increment(1),
+    });
+    setChatInput("");
+    setSendingChat(false);
   };
 
   const handleLogout = async () => {
@@ -1025,7 +1078,17 @@ export default function Dashboard() {
                                 <p className="text-xs text-muted truncate">{u.displayName}</p>
                               </div>
                             </a>
-                            <button onClick={() => removeFriend(u.uid)} className="text-xs text-muted hover:text-pastel-pink transition-colors shrink-0">삭제</button>
+                            <div className="flex gap-1.5 shrink-0">
+                              {(() => {
+                                const unread = ((profile as Record<string, unknown>).chatUnread as Record<string, number> || {})[u.uid] || 0;
+                                return (
+                                  <button onClick={() => { setShowFriends(false); openChat({ uid: u.uid, username: u.username, photoURL: u.photoURL }); }} className={`relative px-2 py-1 rounded-xl text-xs font-medium transition-colors ${unread > 0 ? "bg-red-500/20 text-red-500 animate-pulse" : "bg-pastel-blue/30 text-pastel-blue hover:bg-pastel-blue/50"}`}>
+                                    채팅{unread > 0 && <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold min-w-[18px] px-1 flex items-center justify-center rounded-full">{unread}</span>}
+                                  </button>
+                                );
+                              })()}
+                              <button onClick={() => removeFriend(u.uid)} className="text-xs text-muted hover:text-pastel-pink transition-colors">삭제</button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -1117,6 +1180,64 @@ export default function Dashboard() {
               >
                 닫기
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* ===== 채팅 모달 ===== */}
+        {chatTarget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-6">
+            <div className="bg-card rounded-3xl p-5 w-full max-w-sm shadow-xl flex flex-col" style={{ height: "70vh" }}>
+              <div className="flex items-center gap-3 mb-3 pb-3 border-b border-pastel-purple/15">
+                <button onClick={() => setChatTarget(null)} className="text-muted hover:text-foreground transition-colors text-sm">←</button>
+                {chatTarget.photoURL ? (
+                  <img src={chatTarget.photoURL} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" referrerPolicy="no-referrer" />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pastel-pink to-pastel-purple shrink-0" />
+                )}
+                <p className="text-sm font-semibold">{chatTarget.username}</p>
+              </div>
+
+              <div className="flex-1 overflow-y-auto flex flex-col gap-2 py-2">
+                {chatMessages.length === 0 ? (
+                  <p className="text-xs text-muted text-center py-8">첫 메시지를 보내보세요!</p>
+                ) : (
+                  chatMessages.map((msg) => {
+                    const isMine = msg.senderUid === user?.uid;
+                    return (
+                      <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
+                        <div className={`max-w-[75%] px-3.5 py-2 rounded-2xl text-sm ${isMine ? "bg-pastel-purple/20 text-foreground rounded-br-md" : "bg-pastel-mint/20 text-foreground rounded-bl-md"}`}>
+                          <p className="break-words">{msg.text}</p>
+                          {msg.createdAt && (
+                            <p className={`text-[9px] mt-1 ${isMine ? "text-pastel-purple/50 text-right" : "text-pastel-mint/50"}`}>
+                              {msg.createdAt.toDate().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+                <div ref={chatBottomRef} />
+              </div>
+
+              <div className="flex gap-2 mt-3 pt-3 border-t border-pastel-purple/15">
+                <input
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) sendChat(); }}
+                  placeholder="메시지를 입력하세요"
+                  maxLength={500}
+                  className="flex-1 px-4 py-2.5 rounded-2xl bg-background border border-pastel-purple/20 text-sm focus:outline-none focus:border-pastel-purple/50"
+                />
+                <button
+                  onClick={sendChat}
+                  disabled={!chatInput.trim() || sendingChat}
+                  className="px-4 py-2.5 rounded-2xl bg-pastel-purple text-white text-sm font-medium hover:bg-pastel-purple/80 disabled:opacity-40 transition-colors shrink-0"
+                >
+                  전송
+                </button>
+              </div>
             </div>
           </div>
         )}
