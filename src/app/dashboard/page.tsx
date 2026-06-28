@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { doc, getDoc, getDocFromServer, setDoc, updateDoc, runTransaction, serverTimestamp, collection, getDocs } from "firebase/firestore";
+import { doc, getDoc, getDocFromServer, setDoc, updateDoc, runTransaction, serverTimestamp, collection, getDocs, arrayUnion, arrayRemove, addDoc, query, orderBy, onSnapshot, increment, type Timestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
 import type { User } from "firebase/auth";
@@ -61,8 +61,8 @@ export default function Dashboard() {
   const [showSettings, setShowSettings] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
   const [showRanking, setShowRanking] = useState(false);
-  const [rankingTab, setRankingTab] = useState<"views" | "likes">("views");
-  const [rankingList, setRankingList] = useState<{username: string; displayName: string; tag: number; photoURL: string; views: number; likes: number}[]>([]);
+  const [rankingTab, setRankingTab] = useState<"views" | "likes" | "friends">("views");
+  const [rankingList, setRankingList] = useState<{username: string; displayName: string; tag: number; photoURL: string; views: number; likes: number; friends: number}[]>([]);
   const [loadingRanking, setLoadingRanking] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
@@ -81,7 +81,8 @@ export default function Dashboard() {
   const [likedProfilesList, setLikedProfilesList] = useState<{username: string; displayName: string; tag: number}[]>([]);
   const [loadingList, setLoadingList] = useState(false);
   const [showFriends, setShowFriends] = useState(false);
-  const [friendsList, setFriendsList] = useState<{username: string; displayName: string; tag: number; photoURL?: string}[]>([]);
+  const [friendsList, setFriendsList] = useState<{username: string; displayName: string; tag: number; photoURL?: string; uid: string}[]>([]);
+  const [friendRequests, setFriendRequests] = useState<{username: string; displayName: string; tag: number; photoURL?: string; uid: string}[]>([]);
   const [reorderingCategories, setReorderingCategories] = useState(false);
   const [categoryOrder, setCategoryOrder] = useState<string[]>([]);
   const [dragCatIndex, setDragCatIndex] = useState<number | null>(null);
@@ -89,6 +90,11 @@ export default function Dashboard() {
   const [editingUsername, setEditingUsername] = useState(false);
   const [editName, setEditName] = useState("");
   const [editUsername, setEditUsername] = useState("");
+  const [chatTarget, setChatTarget] = useState<{uid: string; username: string; photoURL?: string} | null>(null);
+  const [chatMessages, setChatMessages] = useState<{id: string; text: string; senderUid: string; createdAt: Timestamp | null}[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [sendingChat, setSendingChat] = useState(false);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
   const defaultUsername = (user?.email?.split("@")[0] || "").slice(0, 15);
@@ -212,6 +218,7 @@ export default function Dashboard() {
           photoURL: data.photoURL || "",
           views: data.views || 0,
           likes: data.likes || 0,
+          friends: (data.friends as string[] || []).length,
         };
       });
       setRankingList(users);
@@ -241,16 +248,117 @@ export default function Dashboard() {
     setLoadingList(true);
     setShowFriends(true);
     const list = (profile as Record<string, unknown>).friends as string[] || [];
-    const results: {username: string; displayName: string; tag: number; photoURL?: string}[] = [];
+    const results: {username: string; displayName: string; tag: number; photoURL?: string; uid: string}[] = [];
     for (const uid of list) {
       const snap = await getDoc(doc(db, "users", uid));
       if (snap.exists()) {
         const d = snap.data();
-        results.push({ username: d.username || "", displayName: d.displayName || "", tag: d.tag || 0, photoURL: d.photoURL || "" });
+        results.push({ username: d.username || "", displayName: d.displayName || "", tag: d.tag || 0, photoURL: d.photoURL || "", uid });
       }
     }
     setFriendsList(results);
+
+    const requests = (profile as Record<string, unknown>).friendRequests as string[] || [];
+    const reqResults: {username: string; displayName: string; tag: number; photoURL?: string; uid: string}[] = [];
+    for (const uid of requests) {
+      const snap = await getDoc(doc(db, "users", uid));
+      if (snap.exists()) {
+        const d = snap.data();
+        reqResults.push({ username: d.username || "", displayName: d.displayName || "", tag: d.tag || 0, photoURL: d.photoURL || "", uid });
+      }
+    }
+    setFriendRequests(reqResults);
     setLoadingList(false);
+  };
+
+  const acceptFriend = async (targetUid: string) => {
+    if (!user) return;
+    const myRef = doc(db, "users", user.uid);
+    const targetRef = doc(db, "users", targetUid);
+    await updateDoc(myRef, { friends: arrayUnion(targetUid), friendRequests: arrayRemove(targetUid) });
+    await updateDoc(targetRef, { friends: arrayUnion(user.uid), sentRequests: arrayRemove(user.uid) });
+    setFriendRequests((prev) => prev.filter((r) => r.uid !== targetUid));
+    const accepted = friendRequests.find((r) => r.uid === targetUid);
+    if (accepted) setFriendsList((prev) => [...prev, accepted]);
+    setProfile((prev: ProfileData) => ({
+      ...prev,
+      friends: [...((prev.friends as string[]) || []), targetUid],
+      friendRequests: ((prev.friendRequests as string[]) || []).filter((id: string) => id !== targetUid),
+    }));
+  };
+
+  const rejectFriend = async (targetUid: string) => {
+    if (!user) return;
+    const myRef = doc(db, "users", user.uid);
+    const targetRef = doc(db, "users", targetUid);
+    await updateDoc(myRef, { friendRequests: arrayRemove(targetUid) });
+    await updateDoc(targetRef, { sentRequests: arrayRemove(user.uid) });
+    setFriendRequests((prev) => prev.filter((r) => r.uid !== targetUid));
+    setProfile((prev: ProfileData) => ({
+      ...prev,
+      friendRequests: ((prev.friendRequests as string[]) || []).filter((id: string) => id !== targetUid),
+    }));
+  };
+
+  const removeFriend = async (targetUid: string) => {
+    if (!user) return;
+    const myRef = doc(db, "users", user.uid);
+    const targetRef = doc(db, "users", targetUid);
+    await updateDoc(myRef, { friends: arrayRemove(targetUid) });
+    await updateDoc(targetRef, { friends: arrayRemove(user.uid) });
+    setFriendsList((prev) => prev.filter((f) => f.uid !== targetUid));
+    setProfile((prev: ProfileData) => ({
+      ...prev,
+      friends: ((prev.friends as string[]) || []).filter((id: string) => id !== targetUid),
+    }));
+  };
+
+  const getChatId = (uid1: string, uid2: string) => [uid1, uid2].sort().join("_");
+
+  const openChat = async (target: {uid: string; username: string; photoURL?: string}) => {
+    setChatTarget(target);
+    setChatInput("");
+    if (user) {
+      await updateDoc(doc(db, "users", user.uid), { [`chatUnread.${target.uid}`]: 0 });
+      setProfile((prev: ProfileData) => ({
+        ...prev,
+        chatUnread: { ...((prev.chatUnread as Record<string, number>) || {}), [target.uid]: 0 },
+      }));
+    }
+  };
+
+  useEffect(() => {
+    if (!chatTarget || !user) return;
+    const chatId = getChatId(user.uid, chatTarget.uid);
+    const messagesRef = collection(db, "chats", chatId, "messages");
+    const q = query(messagesRef, orderBy("createdAt", "asc"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const msgs = snapshot.docs.map((d) => ({
+        id: d.id,
+        text: d.data().text as string,
+        senderUid: d.data().senderUid as string,
+        createdAt: d.data().createdAt as Timestamp | null,
+      }));
+      setChatMessages(msgs);
+      setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    });
+    return () => unsubscribe();
+  }, [chatTarget, user]);
+
+  const sendChat = async () => {
+    if (!user || !chatTarget || !chatInput.trim() || sendingChat) return;
+    setSendingChat(true);
+    const chatId = getChatId(user.uid, chatTarget.uid);
+    await addDoc(collection(db, "chats", chatId, "messages"), {
+      text: chatInput.trim(),
+      senderUid: user.uid,
+      createdAt: serverTimestamp(),
+    });
+    await updateDoc(doc(db, "users", chatTarget.uid), {
+      [`chatUnread.${user.uid}`]: increment(1),
+    });
+    setChatInput("");
+    setSendingChat(false);
   };
 
   const handleLogout = async () => {
@@ -309,12 +417,20 @@ export default function Dashboard() {
             <span className="text-foreground">.</span>
             <span className="text-pastel-blue">profile</span>
           </h1>
-          <button
-            onClick={openFriends}
-            className="absolute right-0 text-sm text-muted hover:text-foreground transition-colors"
-          >
-            👫 친구
-          </button>
+          {(() => {
+            const reqCount = ((profile as Record<string, unknown>).friendRequests as string[] || []).length;
+            const unreadMap = (profile as Record<string, unknown>).chatUnread as Record<string, number> || {};
+            const chatCount = Object.values(unreadMap).reduce((a, b) => a + b, 0);
+            const total = reqCount + chatCount;
+            return (
+              <button
+                onClick={openFriends}
+                className={`absolute right-0 text-sm transition-colors ${total > 0 ? "text-pastel-pink font-semibold animate-pulse" : "text-muted hover:text-foreground"}`}
+              >
+                👫 친구{total > 0 && <span className="ml-1 bg-red-500 text-white px-2 py-0.5 rounded-full text-xs font-bold min-w-[22px] inline-flex items-center justify-center shadow-lg shadow-red-500/40">{total}</span>}
+              </button>
+            );
+          })()}
         </div>
 
         {/* ===== 프로필 카드 (공유 시 이 부분만 보임) ===== */}
@@ -915,34 +1031,83 @@ export default function Dashboard() {
         {/* ===== 친구 목록 모달 ===== */}
         {showFriends && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-6">
-            <div className="bg-card rounded-3xl p-6 w-full max-w-sm shadow-xl">
-              <h3 className="text-base font-semibold text-center mb-4">👫 내 친구</h3>
+            <div className="bg-card rounded-3xl p-6 w-full max-w-sm shadow-xl max-h-[80vh] flex flex-col">
+              <h3 className="text-base font-semibold text-center mb-4">👫 친구</h3>
+
               {loadingList ? (
                 <div className="flex justify-center py-6">
                   <div className="w-6 h-6 rounded-full border-2 border-pastel-purple border-t-transparent animate-spin" />
                 </div>
-              ) : friendsList.length === 0 ? (
-                <p className="text-sm text-muted text-center py-4">아직 친구가 없어요</p>
               ) : (
-                <div className="flex flex-col gap-2 max-h-64 overflow-y-auto mb-4">
-                  {friendsList.map((u, i) => (
-                    <a key={i} href={`/u/${u.tag}`} target="_blank" rel="noopener noreferrer" className={`flex items-center gap-3 px-4 py-3 rounded-2xl ${ROW_COLORS[i % ROW_COLORS.length].color} border ${ROW_COLORS[i % ROW_COLORS.length].border} hover:brightness-95 transition-all`}>
-                      {u.photoURL ? (
-                        <img src={u.photoURL} alt="" className="w-8 h-8 rounded-full border border-pastel-purple/20 shrink-0" referrerPolicy="no-referrer" />
-                      ) : (
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pastel-pink to-pastel-purple shrink-0" />
-                      )}
-                      <div>
-                        <p className="text-sm font-medium">{u.username} <span className="text-pastel-purple text-xs">#{u.tag}</span></p>
-                        <p className="text-xs text-muted">{u.displayName}</p>
+                <div className="flex-1 overflow-y-auto flex flex-col gap-4">
+                  {friendRequests.length > 0 && (
+                    <div>
+                      <p className="text-xs text-pastel-pink font-medium mb-2">받은 친구 요청</p>
+                      <div className="flex flex-col gap-2">
+                        {friendRequests.map((u, i) => (
+                          <div key={u.uid} className={`flex items-center gap-3 px-4 py-3 rounded-2xl ${ROW_COLORS[i % ROW_COLORS.length].color} border ${ROW_COLORS[i % ROW_COLORS.length].border}`}>
+                            <a href={`/u/${u.tag}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 flex-1 min-w-0">
+                              {u.photoURL ? (
+                                <img src={u.photoURL} alt="" className="w-8 h-8 rounded-full border border-pastel-purple/20 shrink-0" referrerPolicy="no-referrer" />
+                              ) : (
+                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pastel-pink to-pastel-purple shrink-0" />
+                              )}
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium truncate">{u.username} <span className="text-pastel-purple text-xs">#{u.tag}</span></p>
+                                <p className="text-xs text-muted truncate">{u.displayName}</p>
+                              </div>
+                            </a>
+                            <div className="flex gap-1.5 shrink-0">
+                              <button onClick={() => acceptFriend(u.uid)} className="px-2.5 py-1 rounded-xl bg-pastel-mint/30 text-pastel-mint text-xs font-medium hover:bg-pastel-mint/50 transition-colors">수락</button>
+                              <button onClick={() => rejectFriend(u.uid)} className="px-2.5 py-1 rounded-xl bg-pastel-pink/30 text-pastel-pink text-xs font-medium hover:bg-pastel-pink/50 transition-colors">거절</button>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    </a>
-                  ))}
+                    </div>
+                  )}
+
+                  <div>
+                    <p className="text-xs text-muted font-medium mb-2">내 친구 {friendsList.length > 0 && `(${friendsList.length})`}</p>
+                    {friendsList.length === 0 ? (
+                      <p className="text-sm text-muted text-center py-4">아직 친구가 없어요</p>
+                    ) : (
+                      <div className="flex flex-col gap-2">
+                        {friendsList.map((u, i) => (
+                          <div key={u.uid} className={`flex items-center gap-3 px-4 py-3 rounded-2xl ${ROW_COLORS[i % ROW_COLORS.length].color} border ${ROW_COLORS[i % ROW_COLORS.length].border}`}>
+                            <a href={`/u/${u.tag}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 flex-1 min-w-0">
+                              {u.photoURL ? (
+                                <img src={u.photoURL} alt="" className="w-8 h-8 rounded-full border border-pastel-purple/20 shrink-0" referrerPolicy="no-referrer" />
+                              ) : (
+                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pastel-pink to-pastel-purple shrink-0" />
+                              )}
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium truncate">{u.username} <span className="text-pastel-purple text-xs">#{u.tag}</span></p>
+                                <p className="text-xs text-muted truncate">{u.displayName}</p>
+                              </div>
+                            </a>
+                            <div className="flex gap-1.5 shrink-0">
+                              {(() => {
+                                const unread = ((profile as Record<string, unknown>).chatUnread as Record<string, number> || {})[u.uid] || 0;
+                                return (
+                                  <button onClick={() => { setShowFriends(false); openChat({ uid: u.uid, username: u.username, photoURL: u.photoURL }); }} className={`relative px-2 py-1 rounded-xl text-xs font-medium transition-colors ${unread > 0 ? "bg-pastel-pink/30 text-pastel-pink animate-pulse" : "bg-pastel-blue/30 text-pastel-blue hover:bg-pastel-blue/50"}`}>
+                                    채팅{unread > 0 && <span className="absolute -top-1.5 -right-1.5 bg-pastel-pink text-white text-[10px] font-bold w-4.5 h-4.5 flex items-center justify-center rounded-full min-w-[18px] px-1">{unread}</span>}
+                                  </button>
+                                );
+                              })()}
+                              <button onClick={() => removeFriend(u.uid)} className="text-xs text-muted hover:text-pastel-pink transition-colors">삭제</button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
+
               <button
                 onClick={() => setShowFriends(false)}
-                className="w-full py-3 rounded-2xl bg-gradient-to-r from-pastel-purple to-pastel-pink text-white font-medium"
+                className="w-full mt-4 py-3 rounded-2xl bg-gradient-to-r from-pastel-purple to-pastel-pink text-white font-medium"
               >
                 닫기
               </button>
@@ -1027,6 +1192,64 @@ export default function Dashboard() {
           </div>
         )}
 
+        {/* ===== 채팅 모달 ===== */}
+        {chatTarget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-6">
+            <div className="bg-card rounded-3xl p-5 w-full max-w-sm shadow-xl flex flex-col" style={{ height: "70vh" }}>
+              <div className="flex items-center gap-3 mb-3 pb-3 border-b border-pastel-purple/15">
+                <button onClick={() => setChatTarget(null)} className="text-muted hover:text-foreground transition-colors text-sm">←</button>
+                {chatTarget.photoURL ? (
+                  <img src={chatTarget.photoURL} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" referrerPolicy="no-referrer" />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pastel-pink to-pastel-purple shrink-0" />
+                )}
+                <p className="text-sm font-semibold">{chatTarget.username}</p>
+              </div>
+
+              <div className="flex-1 overflow-y-auto flex flex-col gap-2 py-2">
+                {chatMessages.length === 0 ? (
+                  <p className="text-xs text-muted text-center py-8">첫 메시지를 보내보세요!</p>
+                ) : (
+                  chatMessages.map((msg) => {
+                    const isMine = msg.senderUid === user?.uid;
+                    return (
+                      <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
+                        <div className={`max-w-[75%] px-3.5 py-2 rounded-2xl text-sm ${isMine ? "bg-pastel-purple/20 text-foreground rounded-br-md" : "bg-pastel-mint/20 text-foreground rounded-bl-md"}`}>
+                          <p className="break-words">{msg.text}</p>
+                          {msg.createdAt && (
+                            <p className={`text-[9px] mt-1 ${isMine ? "text-pastel-purple/50 text-right" : "text-pastel-mint/50"}`}>
+                              {msg.createdAt.toDate().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+                <div ref={chatBottomRef} />
+              </div>
+
+              <div className="flex gap-2 mt-3 pt-3 border-t border-pastel-purple/15">
+                <input
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) sendChat(); }}
+                  placeholder="메시지를 입력하세요"
+                  maxLength={500}
+                  className="flex-1 px-4 py-2.5 rounded-2xl bg-background border border-pastel-purple/20 text-sm focus:outline-none focus:border-pastel-purple/50"
+                />
+                <button
+                  onClick={sendChat}
+                  disabled={!chatInput.trim() || sendingChat}
+                  className="px-4 py-2.5 rounded-2xl bg-pastel-purple text-white text-sm font-medium hover:bg-pastel-purple/80 disabled:opacity-40 transition-colors shrink-0"
+                >
+                  전송
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ===== 순위 모달 ===== */}
         {showRanking && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-6">
@@ -1046,6 +1269,12 @@ export default function Dashboard() {
                 >
                   🩷 좋아요
                 </button>
+                <button
+                  onClick={() => setRankingTab("friends")}
+                  className={`flex-1 py-2 rounded-xl text-sm font-medium transition-colors ${rankingTab === "friends" ? "bg-pastel-mint/20 text-pastel-mint" : "bg-background text-muted hover:bg-pastel-mint/10"}`}
+                >
+                  👫 친구
+                </button>
               </div>
 
               <div className="flex-1 overflow-y-auto flex flex-col gap-2">
@@ -1055,7 +1284,7 @@ export default function Dashboard() {
                   </div>
                 ) : (
                   [...rankingList]
-                    .sort((a, b) => rankingTab === "views" ? b.views - a.views : b.likes - a.likes)
+                    .sort((a, b) => rankingTab === "views" ? b.views - a.views : rankingTab === "likes" ? b.likes - a.likes : b.friends - a.friends)
                     .map((u, i) => {
                       const rowColor = ROW_COLORS[i % ROW_COLORS.length];
                       const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${i + 1}`;
@@ -1078,7 +1307,7 @@ export default function Dashboard() {
                             <p className="text-[10px] text-muted truncate">{u.displayName}</p>
                           </div>
                           <span className="text-sm font-semibold text-pastel-purple shrink-0">
-                            {rankingTab === "views" ? u.views : u.likes}
+                            {rankingTab === "views" ? u.views : rankingTab === "likes" ? u.likes : u.friends}
                           </span>
                         </a>
                       );
