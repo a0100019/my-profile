@@ -1410,7 +1410,7 @@ export default function Dashboard() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-6">
             <div className="bg-card rounded-3xl p-5 w-full max-w-sm shadow-xl flex flex-col" style={{ height: "70vh" }}>
               <div className="flex items-center gap-3 mb-3 pb-3 border-b border-pastel-purple/15">
-                <button onClick={() => setChatTarget(null)} className="text-muted hover:text-foreground transition-colors text-sm">←</button>
+                <button onClick={() => { setChatTarget(null); setShowFriends(true); }} className="text-muted hover:text-foreground transition-colors text-sm">←</button>
                 {chatTarget.photoURL ? (
                   <img src={chatTarget.photoURL} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" referrerPolicy="no-referrer" />
                 ) : (
