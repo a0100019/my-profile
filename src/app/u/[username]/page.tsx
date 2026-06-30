@@ -54,6 +54,8 @@ const CATEGORIES = [
   { key: "drink", emoji: "🥤", label: "음료" },
   { key: "comic", emoji: "📖", label: "만화" },
   { key: "pokemon", emoji: "🐾", label: "포켓몬" },
+  { key: "youtube", emoji: "▶️", label: "유튜브" },
+  { key: "exercise", emoji: "💪", label: "운동" },
   { key: "ideal", emoji: "💕", label: "이상형" },
 ];
 

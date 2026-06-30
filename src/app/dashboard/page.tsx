@@ -36,6 +36,8 @@ const ALL_CATEGORIES = [
   { key: "drink", emoji: "🥤", label: "음료" },
   { key: "comic", emoji: "📖", label: "만화" },
   { key: "pokemon", emoji: "🐾", label: "포켓몬" },
+  { key: "youtube", emoji: "▶️", label: "유튜브" },
+  { key: "exercise", emoji: "💪", label: "운동" },
   { key: "ideal", emoji: "💕", label: "이상형" },
 ];
 
@@ -92,6 +94,11 @@ export default function Dashboard() {
   const [editingUsername, setEditingUsername] = useState(false);
   const [editName, setEditName] = useState("");
   const [editUsername, setEditUsername] = useState("");
+  const [friendsTab, setFriendsTab] = useState<"friends" | "globalChat">("friends");
+  const [globalMessages, setGlobalMessages] = useState<{id: string; text: string; senderUid: string; senderName: string; senderPhoto: string; createdAt: Timestamp | null}[]>([]);
+  const [globalChatInput, setGlobalChatInput] = useState("");
+  const [sendingGlobal, setSendingGlobal] = useState(false);
+  const globalChatBottomRef = useRef<HTMLDivElement>(null);
   const [showComments, setShowComments] = useState(false);
   const [commentCount, setCommentCount] = useState(0);
   const [comments, setComments] = useState<{id: string; text: string; senderUid: string; senderName: string; senderTag: string; senderPhoto: string; createdAt: Timestamp | null}[]>([]);
@@ -203,9 +210,20 @@ export default function Dashboard() {
     return results;
   };
 
+  const rankingUsersRef = useRef<{username: string; displayName: string; tag: number; photoURL: string; views: number; likes: number; friends: number}[]>([]);
+
+  const sortRanking = (users: typeof rankingUsersRef.current, tab: "views" | "likes" | "friends") => {
+    return [...users].sort((a, b) => {
+      const av = tab === "views" ? a.views : tab === "likes" ? a.likes : a.friends;
+      const bv = tab === "views" ? b.views : tab === "likes" ? b.likes : b.friends;
+      return bv - av || a.username.localeCompare(b.username);
+    });
+  };
+
   const openRanking = async () => {
     setShowRanking(true);
     setLoadingRanking(true);
+    setRankingTab("views");
     try {
       const snapshot = await getDocs(collection(db, "users"));
       const users = snapshot.docs.map((d) => {
@@ -220,11 +238,17 @@ export default function Dashboard() {
           friends: (data.friends as string[] || []).length,
         };
       });
-      setRankingList(users);
+      rankingUsersRef.current = users;
+      setRankingList(sortRanking(users, "views"));
     } catch (error) {
       console.error("순위 로드 실패:", error);
     }
     setLoadingRanking(false);
+  };
+
+  const switchRankingTab = (tab: "views" | "likes" | "friends") => {
+    setRankingTab(tab);
+    setRankingList(sortRanking(rankingUsersRef.current, tab));
   };
 
   const openLikedBy = async () => {
@@ -310,6 +334,38 @@ export default function Dashboard() {
       ...prev,
       friends: ((prev.friends as string[]) || []).filter((id: string) => id !== targetUid),
     }));
+  };
+
+  useEffect(() => {
+    if (friendsTab !== "globalChat" || !showFriends) return;
+    const q = query(collection(db, "globalChat"), orderBy("createdAt", "asc"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const last100 = snapshot.docs.slice(-100);
+      setGlobalMessages(last100.map((d) => ({
+        id: d.id,
+        text: d.data().text as string,
+        senderUid: d.data().senderUid as string,
+        senderName: d.data().senderName as string,
+        senderPhoto: d.data().senderPhoto as string || "",
+        createdAt: d.data().createdAt as Timestamp | null,
+      })));
+      setTimeout(() => globalChatBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    });
+    return () => unsubscribe();
+  }, [friendsTab, showFriends]);
+
+  const sendGlobalChat = async () => {
+    if (!user || !globalChatInput.trim() || sendingGlobal) return;
+    setSendingGlobal(true);
+    await addDoc(collection(db, "globalChat"), {
+      text: globalChatInput.trim(),
+      senderUid: user.uid,
+      senderName: username,
+      senderPhoto: user.photoURL || "",
+      createdAt: serverTimestamp(),
+    });
+    setGlobalChatInput("");
+    setSendingGlobal(false);
   };
 
   const openComments = () => {
@@ -746,7 +802,7 @@ export default function Dashboard() {
         {availableCategories.length > 0 && (
           <div className="w-full rounded-2xl border border-pastel-purple/15 bg-card/60 p-4">
             <p className="text-sm text-muted mb-3 text-center">카테고리 추가하기</p>
-            <div className="flex flex-wrap gap-2 justify-center">
+            <div className="grid grid-cols-3 gap-2">
               {availableCategories.map((cat) => (
                 <button
                   key={cat.key}
@@ -754,13 +810,13 @@ export default function Dashboard() {
                     setEditingCategory(cat.key);
                     setEditItems([]);
                   }}
-                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-full bg-background border border-pastel-purple/20 text-sm font-medium hover:border-pastel-purple/50 hover:shadow-md hover:scale-[1.03] active:scale-[0.97] transition-all duration-200"
+                  className="flex items-center justify-center gap-1.5 px-2 py-2.5 rounded-full bg-background border border-pastel-purple/20 text-sm font-medium hover:border-pastel-purple/50 hover:shadow-md hover:scale-[1.03] active:scale-[0.97] transition-all duration-200"
                 >
                   {cat.emoji} {cat.label}
                   <span className="text-pastel-purple ml-0.5">+</span>
                 </button>
               ))}
-              <div className="flex items-center gap-1.5 w-full mt-1">
+              <div className="flex items-center gap-1.5 col-span-3 mt-1">
                 <input
                   value={customCategory}
                   onChange={(e) => setCustomCategory(e.target.value)}
@@ -799,18 +855,18 @@ export default function Dashboard() {
         )}
 
         {/* 순위 보기 + 댓글 보기 */}
-        <div className="flex gap-2">
+        <div className="grid grid-cols-2 gap-2 w-full">
           <button
             onClick={openRanking}
-            className="flex-1 py-3 rounded-2xl bg-pastel-yellow/30 border border-pastel-yellow/50 text-foreground font-medium hover:bg-pastel-yellow/40 transition-colors text-sm"
+            className="w-full py-3 rounded-2xl bg-pastel-yellow/30 border border-pastel-yellow/50 text-foreground font-medium hover:bg-pastel-yellow/40 transition-colors text-sm"
           >
-            순위 보기
+            🏆 순위 보기
           </button>
           <button
             onClick={openComments}
-            className="flex-1 py-3 rounded-2xl bg-pastel-blue/30 border border-pastel-blue/50 text-foreground font-medium hover:bg-pastel-blue/40 transition-colors text-sm"
+            className="w-full py-3 rounded-2xl bg-pastel-blue/30 border border-pastel-blue/50 text-foreground font-medium hover:bg-pastel-blue/40 transition-colors text-sm"
           >
-            댓글 보기({commentCount})
+            💬 댓글 보기({commentCount})
           </button>
         </div>
 
@@ -1081,81 +1137,151 @@ export default function Dashboard() {
         {/* ===== 친구 목록 모달 ===== */}
         {showFriends && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-6">
-            <div className="bg-card rounded-3xl p-6 w-full max-w-sm shadow-xl max-h-[80vh] flex flex-col">
-              <h3 className="text-base font-semibold text-center mb-4">👫 친구</h3>
+            <div className="bg-card rounded-3xl p-5 w-full max-w-sm shadow-xl flex flex-col" style={{ height: "75vh" }}>
+              <div className="flex gap-2 mb-4">
+                <button
+                  onClick={() => setFriendsTab("friends")}
+                  className={`flex-1 py-2 rounded-xl text-sm font-medium transition-colors ${friendsTab === "friends" ? "bg-pastel-purple/20 text-pastel-purple" : "bg-background text-muted hover:bg-pastel-purple/10"}`}
+                >
+                  👫 친구
+                </button>
+                <button
+                  onClick={() => setFriendsTab("globalChat")}
+                  className={`flex-1 py-2 rounded-xl text-sm font-medium transition-colors ${friendsTab === "globalChat" ? "bg-pastel-mint/20 text-pastel-mint" : "bg-background text-muted hover:bg-pastel-mint/10"}`}
+                >
+                  💬 전체 채팅
+                </button>
+              </div>
 
-              {loadingList ? (
-                <div className="flex justify-center py-6">
-                  <div className="w-6 h-6 rounded-full border-2 border-pastel-purple border-t-transparent animate-spin" />
-                </div>
-              ) : (
-                <div className="flex-1 overflow-y-auto flex flex-col gap-4">
-                  {friendRequests.length > 0 && (
-                    <div>
-                      <p className="text-xs text-pastel-pink font-medium mb-2">받은 친구 요청</p>
-                      <div className="flex flex-col gap-2">
-                        {friendRequests.map((u, i) => (
-                          <div key={u.uid} className={`flex items-center gap-3 px-4 py-3 rounded-2xl ${ROW_COLORS[i % ROW_COLORS.length].color} border ${ROW_COLORS[i % ROW_COLORS.length].border}`}>
-                            {u.photoURL ? (
-                              <img src={u.photoURL} alt="" className="w-8 h-8 rounded-full border border-pastel-purple/20 shrink-0" referrerPolicy="no-referrer" />
-                            ) : (
-                              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pastel-pink to-pastel-purple shrink-0" />
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">{u.username} <span className="text-pastel-purple text-xs">#{u.tag}</span></p>
-                              <p className="text-xs text-muted truncate">{u.displayName}</p>
-                            </div>
-                            <div className="flex gap-1.5 shrink-0">
-                              <button onClick={() => acceptFriend(u.uid)} className="px-2.5 py-1 rounded-xl bg-pastel-mint/30 text-pastel-mint text-xs font-medium hover:bg-pastel-mint/50 transition-colors">수락</button>
-                              <button onClick={() => rejectFriend(u.uid)} className="px-2.5 py-1 rounded-xl bg-pastel-pink/30 text-pastel-pink text-xs font-medium hover:bg-pastel-pink/50 transition-colors">거절</button>
-                            </div>
+              {friendsTab === "friends" ? (
+                <>
+                  {loadingList ? (
+                    <div className="flex justify-center py-6">
+                      <div className="w-6 h-6 rounded-full border-2 border-pastel-purple border-t-transparent animate-spin" />
+                    </div>
+                  ) : (
+                    <div className="flex-1 overflow-y-auto flex flex-col gap-4">
+                      {friendRequests.length > 0 && (
+                        <div>
+                          <p className="text-xs text-pastel-pink font-medium mb-2">받은 친구 요청</p>
+                          <div className="flex flex-col gap-2">
+                            {friendRequests.map((u, i) => (
+                              <div key={u.uid} className={`flex items-center gap-3 px-4 py-3 rounded-2xl ${ROW_COLORS[i % ROW_COLORS.length].color} border ${ROW_COLORS[i % ROW_COLORS.length].border}`}>
+                                {u.photoURL ? (
+                                  <img src={u.photoURL} alt="" className="w-8 h-8 rounded-full border border-pastel-purple/20 shrink-0" referrerPolicy="no-referrer" />
+                                ) : (
+                                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pastel-pink to-pastel-purple shrink-0" />
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium truncate">{u.username} <span className="text-pastel-purple text-xs">#{u.tag}</span></p>
+                                  <p className="text-xs text-muted truncate">{u.displayName}</p>
+                                </div>
+                                <div className="flex gap-1.5 shrink-0">
+                                  <button onClick={() => acceptFriend(u.uid)} className="px-2.5 py-1 rounded-xl bg-pastel-mint/30 text-pastel-mint text-xs font-medium hover:bg-pastel-mint/50 transition-colors">수락</button>
+                                  <button onClick={() => rejectFriend(u.uid)} className="px-2.5 py-1 rounded-xl bg-pastel-pink/30 text-pastel-pink text-xs font-medium hover:bg-pastel-pink/50 transition-colors">거절</button>
+                                </div>
+                              </div>
+                            ))}
                           </div>
-                        ))}
+                        </div>
+                      )}
+
+                      <div>
+                        <p className="text-xs text-muted font-medium mb-2">내 친구 {friendsList.length > 0 && `(${friendsList.length})`}</p>
+                        {friendsList.length === 0 ? (
+                          <p className="text-sm text-muted text-center py-4">아직 친구가 없어요</p>
+                        ) : (
+                          <div className="flex flex-col gap-2">
+                            {friendsList.map((u, i) => (
+                              <div key={u.uid} className={`flex items-center gap-3 px-4 py-3 rounded-2xl ${ROW_COLORS[i % ROW_COLORS.length].color} border ${ROW_COLORS[i % ROW_COLORS.length].border}`}>
+                                <a href={`/u/${u.tag}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 flex-1 min-w-0">
+                                  {u.photoURL ? (
+                                    <img src={u.photoURL} alt="" className="w-8 h-8 rounded-full border border-pastel-purple/20 shrink-0" referrerPolicy="no-referrer" />
+                                  ) : (
+                                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pastel-pink to-pastel-purple shrink-0" />
+                                  )}
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-medium truncate">{u.username} <span className="text-pastel-purple text-xs">#{u.tag}</span></p>
+                                    <p className="text-xs text-muted truncate">{u.displayName}</p>
+                                  </div>
+                                </a>
+                                <div className="flex gap-1.5 shrink-0">
+                                  {(() => {
+                                    const unread = ((profile as Record<string, unknown>).chatUnread as Record<string, number> || {})[u.uid] || 0;
+                                    return (
+                                      <button onClick={() => { setShowFriends(false); openChat({ uid: u.uid, username: u.username, photoURL: u.photoURL }); }} className={`relative px-2 py-1 rounded-xl text-xs font-medium transition-colors ${unread > 0 ? "bg-red-500/20 text-red-500 animate-pulse" : "bg-pastel-blue/30 text-pastel-blue hover:bg-pastel-blue/50"}`}>
+                                        채팅{unread > 0 && <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold min-w-[18px] px-1 flex items-center justify-center rounded-full">{unread}</span>}
+                                      </button>
+                                    );
+                                  })()}
+                                  <button onClick={() => removeFriend(u.uid)} className="text-xs text-muted hover:text-pastel-pink transition-colors">삭제</button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
-
-                  <div>
-                    <p className="text-xs text-muted font-medium mb-2">내 친구 {friendsList.length > 0 && `(${friendsList.length})`}</p>
-                    {friendsList.length === 0 ? (
-                      <p className="text-sm text-muted text-center py-4">아직 친구가 없어요</p>
+                </>
+              ) : (
+                <>
+                  <div className="flex-1 overflow-y-auto flex flex-col gap-2 py-2">
+                    {globalMessages.length === 0 ? (
+                      <p className="text-xs text-muted text-center py-8">아직 메시지가 없어요. 첫 메시지를 남겨보세요!</p>
                     ) : (
-                      <div className="flex flex-col gap-2">
-                        {friendsList.map((u, i) => (
-                          <div key={u.uid} className={`flex items-center gap-3 px-4 py-3 rounded-2xl ${ROW_COLORS[i % ROW_COLORS.length].color} border ${ROW_COLORS[i % ROW_COLORS.length].border}`}>
-                            <a href={`/u/${u.tag}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 flex-1 min-w-0">
-                              {u.photoURL ? (
-                                <img src={u.photoURL} alt="" className="w-8 h-8 rounded-full border border-pastel-purple/20 shrink-0" referrerPolicy="no-referrer" />
+                      globalMessages.map((msg) => {
+                        const isMine = msg.senderUid === user?.uid;
+                        return (
+                          <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"} gap-2`}>
+                            {!isMine && (
+                              msg.senderPhoto ? (
+                                <img src={msg.senderPhoto} alt="" className="w-6 h-6 rounded-full shrink-0 mt-1" referrerPolicy="no-referrer" />
                               ) : (
-                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pastel-pink to-pastel-purple shrink-0" />
-                              )}
-                              <div className="min-w-0">
-                                <p className="text-sm font-medium truncate">{u.username} <span className="text-pastel-purple text-xs">#{u.tag}</span></p>
-                                <p className="text-xs text-muted truncate">{u.displayName}</p>
+                                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-pastel-pink to-pastel-purple shrink-0 mt-1" />
+                              )
+                            )}
+                            <div className={`max-w-[70%] ${isMine ? "" : ""}`}>
+                              {!isMine && <p className="text-[10px] text-muted mb-0.5">{msg.senderName}</p>}
+                              <div className={`px-3 py-2 rounded-2xl text-sm ${isMine ? "bg-pastel-mint/20 text-foreground rounded-br-md" : "bg-pastel-purple/10 text-foreground rounded-bl-md"}`}>
+                                <p className="break-words">{msg.text}</p>
                               </div>
-                            </a>
-                            <div className="flex gap-1.5 shrink-0">
-                              {(() => {
-                                const unread = ((profile as Record<string, unknown>).chatUnread as Record<string, number> || {})[u.uid] || 0;
-                                return (
-                                  <button onClick={() => { setShowFriends(false); openChat({ uid: u.uid, username: u.username, photoURL: u.photoURL }); }} className={`relative px-2 py-1 rounded-xl text-xs font-medium transition-colors ${unread > 0 ? "bg-red-500/20 text-red-500 animate-pulse" : "bg-pastel-blue/30 text-pastel-blue hover:bg-pastel-blue/50"}`}>
-                                    채팅{unread > 0 && <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold min-w-[18px] px-1 flex items-center justify-center rounded-full">{unread}</span>}
-                                  </button>
-                                );
-                              })()}
-                              <button onClick={() => removeFriend(u.uid)} className="text-xs text-muted hover:text-pastel-pink transition-colors">삭제</button>
+                              {msg.createdAt && (
+                                <p className={`text-[9px] text-muted mt-0.5 ${isMine ? "text-right" : ""}`}>
+                                  {msg.createdAt.toDate().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}
+                                </p>
+                              )}
                             </div>
                           </div>
-                        ))}
-                      </div>
+                        );
+                      })
                     )}
+                    <div ref={globalChatBottomRef} />
                   </div>
-                </div>
+
+                  <div className="flex gap-2 mt-2 pt-3 border-t border-pastel-mint/15">
+                    <input
+                      value={globalChatInput}
+                      onChange={(e) => setGlobalChatInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) sendGlobalChat(); }}
+                      placeholder="메시지를 입력하세요"
+                      maxLength={300}
+                      className="flex-1 px-4 py-2.5 rounded-2xl bg-background border border-pastel-mint/20 text-sm focus:outline-none focus:border-pastel-mint/50"
+                    />
+                    <button
+                      onClick={sendGlobalChat}
+                      disabled={!globalChatInput.trim() || sendingGlobal}
+                      className="px-4 py-2.5 rounded-2xl bg-pastel-mint text-white text-sm font-medium hover:bg-pastel-mint/80 disabled:opacity-40 transition-colors shrink-0"
+                    >
+                      전송
+                    </button>
+                  </div>
+                </>
               )}
 
               <button
-                onClick={() => setShowFriends(false)}
-                className="w-full mt-4 py-3 rounded-2xl bg-gradient-to-r from-pastel-purple to-pastel-pink text-white font-medium"
+                onClick={() => { setShowFriends(false); setFriendsTab("friends"); }}
+                className="w-full mt-3 py-3 rounded-2xl bg-gradient-to-r from-pastel-purple to-pastel-pink text-white font-medium"
               >
                 닫기
               </button>
@@ -1200,24 +1326,6 @@ export default function Dashboard() {
                   className="w-full px-4 py-3 rounded-2xl bg-pastel-purple/10 border border-pastel-purple/20 text-sm text-foreground hover:bg-pastel-purple/20 transition-colors text-left"
                 >
                   로그아웃
-                </button>
-                <button
-                  onClick={async () => {
-                    if (!user) return;
-                    const ok = confirm("정말 탈퇴하시겠어요? 모든 데이터가 삭제됩니다.");
-                    if (!ok) return;
-                    try {
-                      const { deleteDoc } = await import("firebase/firestore");
-                      await deleteDoc(doc(db, "users", user.uid));
-                      await user.delete();
-                      router.replace("/");
-                    } catch {
-                      alert("탈퇴에 실패했습니다. 다시 로그인 후 시도해주세요.");
-                    }
-                  }}
-                  className="w-full px-4 py-3 rounded-2xl bg-red-50 border border-red-200 text-sm text-red-400 hover:bg-red-100 transition-colors text-left"
-                >
-                  계정 탈퇴
                 </button>
                 <button
                   onClick={() => {
@@ -1363,60 +1471,54 @@ export default function Dashboard() {
 
               <div className="flex gap-2 mb-4">
                 <button
-                  onClick={() => setRankingTab("views")}
+                  onClick={() => switchRankingTab("views")}
                   className={`flex-1 py-2 rounded-xl text-sm font-medium transition-colors ${rankingTab === "views" ? "bg-pastel-purple/20 text-pastel-purple" : "bg-background text-muted hover:bg-pastel-purple/10"}`}
                 >
                   🔮 조회수
                 </button>
                 <button
-                  onClick={() => setRankingTab("likes")}
+                  onClick={() => switchRankingTab("likes")}
                   className={`flex-1 py-2 rounded-xl text-sm font-medium transition-colors ${rankingTab === "likes" ? "bg-pastel-pink/20 text-pastel-pink" : "bg-background text-muted hover:bg-pastel-pink/10"}`}
                 >
                   🩷 좋아요
                 </button>
                 <button
-                  onClick={() => setRankingTab("friends")}
+                  onClick={() => switchRankingTab("friends")}
                   className={`flex-1 py-2 rounded-xl text-sm font-medium transition-colors ${rankingTab === "friends" ? "bg-pastel-mint/20 text-pastel-mint" : "bg-background text-muted hover:bg-pastel-mint/10"}`}
                 >
                   👫 친구
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto flex flex-col gap-2">
+              <div className="overflow-y-auto flex flex-col gap-2" style={{ maxHeight: "50vh" }}>
                 {loadingRanking ? (
                   <div className="flex justify-center py-8">
                     <div className="w-6 h-6 rounded-full border-2 border-pastel-purple border-t-transparent animate-spin" />
                   </div>
                 ) : (
-                  [...rankingList]
-                    .sort((a, b) => rankingTab === "views" ? b.views - a.views : rankingTab === "likes" ? b.likes - a.likes : b.friends - a.friends)
-                    .map((u, i) => {
-                      const rowColor = ROW_COLORS[i % ROW_COLORS.length];
-                      const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${i + 1}`;
-                      return (
-                        <a
-                          key={u.tag}
-                          href={`/u/${u.tag}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl ${rowColor.color} border ${rowColor.border} hover:brightness-95 transition-all`}
-                        >
-                          <span className="w-6 text-center text-sm font-bold shrink-0">{medal}</span>
-                          {u.photoURL ? (
-                            <img src={u.photoURL} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" referrerPolicy="no-referrer" />
-                          ) : (
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pastel-pink to-pastel-purple shrink-0" />
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{u.username} <span className="text-pastel-purple text-xs font-normal">#{u.tag}</span></p>
-                            <p className="text-[10px] text-muted truncate">{u.displayName}</p>
-                          </div>
-                          <span className="text-sm font-semibold text-pastel-purple shrink-0">
-                            {rankingTab === "views" ? u.views : rankingTab === "likes" ? u.likes : u.friends}
-                          </span>
-                        </a>
-                      );
-                    })
+                  rankingList.map((u, i) => (
+                    <a
+                      key={`${rankingTab}-${u.username}-${u.tag}`}
+                      href={`/u/${u.tag}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl ${ROW_COLORS[i % ROW_COLORS.length].color} border ${ROW_COLORS[i % ROW_COLORS.length].border} hover:brightness-95 transition-all`}
+                    >
+                      <span className="w-6 text-center text-sm font-bold shrink-0">{i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${i + 1}`}</span>
+                      {u.photoURL ? (
+                        <img src={u.photoURL} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" referrerPolicy="no-referrer" />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pastel-pink to-pastel-purple shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{u.username} <span className="text-pastel-purple text-xs font-normal">#{u.tag}</span></p>
+                        <p className="text-[10px] text-muted truncate">{u.displayName}</p>
+                      </div>
+                      <span className="text-sm font-semibold text-pastel-purple shrink-0">
+                        {rankingTab === "views" ? u.views : rankingTab === "likes" ? u.likes : u.friends}
+                      </span>
+                    </a>
+                  ))
                 )}
               </div>
 
