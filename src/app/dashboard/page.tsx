@@ -92,6 +92,11 @@ export default function Dashboard() {
   const [editingUsername, setEditingUsername] = useState(false);
   const [editName, setEditName] = useState("");
   const [editUsername, setEditUsername] = useState("");
+  const [showComments, setShowComments] = useState(false);
+  const [commentCount, setCommentCount] = useState(0);
+  const [comments, setComments] = useState<{id: string; text: string; senderUid: string; senderName: string; senderTag: string; senderPhoto: string; createdAt: Timestamp | null}[]>([]);
+  const [commentInput, setCommentInput] = useState("");
+  const [sendingComment, setSendingComment] = useState(false);
   const [chatTarget, setChatTarget] = useState<{uid: string; username: string; photoURL?: string} | null>(null);
   const [chatMessages, setChatMessages] = useState<{id: string; text: string; senderUid: string; createdAt: Timestamp | null}[]>([]);
   const [chatInput, setChatInput] = useState("");
@@ -142,6 +147,8 @@ export default function Dashboard() {
           });
         }
         await updateDoc(docRef, { lastActiveAt: serverTimestamp() });
+        const commentsSnap = await getDocs(collection(db, "users", currentUser.uid, "comments"));
+        setCommentCount(commentsSnap.size);
       } catch (error) {
         console.error("프로필 로드 실패:", error);
       }
@@ -303,6 +310,47 @@ export default function Dashboard() {
       ...prev,
       friends: ((prev.friends as string[]) || []).filter((id: string) => id !== targetUid),
     }));
+  };
+
+  const openComments = () => {
+    if (!user) return;
+    setShowComments(true);
+    const commentsRef = collection(db, "users", user.uid, "comments");
+    const q = query(commentsRef, orderBy("createdAt", "desc"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setComments(snapshot.docs.map((d) => ({
+        id: d.id,
+        text: d.data().text as string,
+        senderUid: d.data().senderUid as string,
+        senderName: d.data().senderName as string,
+        senderTag: d.data().senderTag as string,
+        senderPhoto: d.data().senderPhoto as string || "",
+        createdAt: d.data().createdAt as Timestamp | null,
+      })));
+      setCommentCount(snapshot.size);
+    });
+    return unsubscribe;
+  };
+
+  const sendComment = async () => {
+    if (!user || !commentInput.trim() || sendingComment) return;
+    setSendingComment(true);
+    await addDoc(collection(db, "users", user.uid, "comments"), {
+      text: commentInput.trim(),
+      senderUid: user.uid,
+      senderName: username,
+      senderTag: String(userTag || ""),
+      senderPhoto: user.photoURL || "",
+      createdAt: serverTimestamp(),
+    });
+    setCommentInput("");
+    setSendingComment(false);
+  };
+
+  const deleteComment = async (commentId: string) => {
+    if (!user) return;
+    const { deleteDoc: delDoc } = await import("firebase/firestore");
+    await delDoc(doc(db, "users", user.uid, "comments", commentId));
   };
 
   const getChatId = (uid1: string, uid2: string) => [uid1, uid2].sort().join("_");
@@ -750,13 +798,21 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* 순위 보기 */}
-        <button
-          onClick={openRanking}
-          className="w-full py-3 rounded-2xl bg-pastel-yellow/30 border border-pastel-yellow/50 text-foreground font-medium hover:bg-pastel-yellow/40 transition-colors text-sm"
-        >
-          🏆 순위 보기
-        </button>
+        {/* 순위 보기 + 댓글 보기 */}
+        <div className="flex gap-2">
+          <button
+            onClick={openRanking}
+            className="flex-1 py-3 rounded-2xl bg-pastel-yellow/30 border border-pastel-yellow/50 text-foreground font-medium hover:bg-pastel-yellow/40 transition-colors text-sm"
+          >
+            순위 보기
+          </button>
+          <button
+            onClick={openComments}
+            className="flex-1 py-3 rounded-2xl bg-pastel-blue/30 border border-pastel-blue/50 text-foreground font-medium hover:bg-pastel-blue/40 transition-colors text-sm"
+          >
+            댓글 보기({commentCount})
+          </button>
+        </div>
 
         {/* 링크 공유 버튼 */}
         <button
@@ -1180,6 +1236,63 @@ export default function Dashboard() {
               >
                 닫기
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* ===== 댓글 모달 ===== */}
+        {showComments && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-6">
+            <div className="bg-card rounded-3xl p-5 w-full max-w-sm shadow-xl flex flex-col" style={{ maxHeight: "75vh" }}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-base font-semibold">댓글 ({commentCount})</h3>
+                <button onClick={() => setShowComments(false)} className="text-muted hover:text-foreground text-lg">✕</button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto flex flex-col gap-3 mb-3">
+                {comments.length === 0 ? (
+                  <p className="text-sm text-muted text-center py-8">아직 댓글이 없어요</p>
+                ) : (
+                  comments.map((c) => (
+                    <div key={c.id} className="flex gap-2.5">
+                      {c.senderPhoto ? (
+                        <img src={c.senderPhoto} alt="" className="w-7 h-7 rounded-full shrink-0 mt-0.5" referrerPolicy="no-referrer" />
+                      ) : (
+                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-pastel-pink to-pastel-purple shrink-0 mt-0.5" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline gap-1.5">
+                          <a href={`/u/${c.senderTag}`} target="_blank" rel="noopener noreferrer" className="text-sm font-medium hover:text-pastel-purple transition-colors">{c.senderName}</a>
+                          <span className="text-[10px] text-muted">#{c.senderTag}</span>
+                          {c.createdAt && <span className="text-[10px] text-muted ml-auto shrink-0">{c.createdAt.toDate().toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}</span>}
+                        </div>
+                        <p className="text-sm text-foreground/80 break-words">{c.text}</p>
+                      </div>
+                      {c.senderUid === user?.uid && (
+                        <button onClick={() => deleteComment(c.id)} className="text-[10px] text-muted hover:text-pastel-pink shrink-0 self-start mt-1">삭제</button>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="flex gap-2 pt-3 border-t border-pastel-purple/15">
+                <input
+                  value={commentInput}
+                  onChange={(e) => setCommentInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) sendComment(); }}
+                  placeholder="댓글을 남겨보세요"
+                  maxLength={200}
+                  className="flex-1 px-4 py-2.5 rounded-2xl bg-background border border-pastel-blue/20 text-sm focus:outline-none focus:border-pastel-blue/50"
+                />
+                <button
+                  onClick={sendComment}
+                  disabled={!commentInput.trim() || sendingComment}
+                  className="px-4 py-2.5 rounded-2xl bg-pastel-blue text-white text-sm font-medium hover:bg-pastel-blue/80 disabled:opacity-40 transition-colors shrink-0"
+                >
+                  등록
+                </button>
+              </div>
             </div>
           </div>
         )}
