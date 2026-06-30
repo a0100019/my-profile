@@ -696,7 +696,7 @@ export default function Dashboard() {
 
         {/* 카테고리 추가하기 */}
         {availableCategories.length > 0 && (
-          <div className="w-full">
+          <div className="w-full rounded-2xl border border-pastel-purple/15 bg-card/60 p-4">
             <p className="text-sm text-muted mb-3 text-center">카테고리 추가하기</p>
             <div className="flex flex-wrap gap-2 justify-center">
               {availableCategories.map((cat) => (
@@ -706,7 +706,7 @@ export default function Dashboard() {
                     setEditingCategory(cat.key);
                     setEditItems([]);
                   }}
-                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-full bg-card border border-pastel-purple/20 text-sm font-medium hover:border-pastel-purple/50 hover:shadow-md hover:scale-[1.03] active:scale-[0.97] transition-all duration-200"
+                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-full bg-background border border-pastel-purple/20 text-sm font-medium hover:border-pastel-purple/50 hover:shadow-md hover:scale-[1.03] active:scale-[0.97] transition-all duration-200"
                 >
                   {cat.emoji} {cat.label}
                   <span className="text-pastel-purple ml-0.5">+</span>
@@ -728,7 +728,7 @@ export default function Dashboard() {
                   }}
                   placeholder="원하는 카테고리를 만들어봐요"
                   maxLength={20}
-                  className="flex-1 px-4 py-2.5 rounded-full bg-card border border-pastel-mint/30 text-sm focus:outline-none focus:border-pastel-mint"
+                  className="flex-1 px-4 py-2.5 rounded-full bg-background border border-pastel-mint/30 text-sm focus:outline-none focus:border-pastel-mint"
                 />
                 <button
                   onClick={() => {
