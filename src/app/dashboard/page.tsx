@@ -69,7 +69,7 @@ export default function Dashboard() {
   const [showTerms, setShowTerms] = useState(false);
   const [showRanking, setShowRanking] = useState(false);
   const [rankingTab, setRankingTab] = useState<"views" | "likes" | "friends">("views");
-  const [rankingList, setRankingList] = useState<{username: string; displayName: string; tag: number; photoURL: string; views: number; likes: number; friends: number}[]>([]);
+  const [rankingList, setRankingList] = useState<{username: string; displayName: string; tag: number; photoURL: string; views: number; likes: number; friends: number; bio: string}[]>([]);
   const [loadingRanking, setLoadingRanking] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
@@ -84,12 +84,12 @@ export default function Dashboard() {
   const [photoZoom, setPhotoZoom] = useState(false);
   const [showLikedBy, setShowLikedBy] = useState(false);
   const [showLikedProfiles, setShowLikedProfiles] = useState(false);
-  const [likedByList, setLikedByList] = useState<{username: string; displayName: string; tag: number}[]>([]);
-  const [likedProfilesList, setLikedProfilesList] = useState<{username: string; displayName: string; tag: number}[]>([]);
+  const [likedByList, setLikedByList] = useState<{username: string; displayName: string; tag: number; bio: string}[]>([]);
+  const [likedProfilesList, setLikedProfilesList] = useState<{username: string; displayName: string; tag: number; bio: string}[]>([]);
   const [loadingList, setLoadingList] = useState(false);
   const [showFriends, setShowFriends] = useState(false);
-  const [friendsList, setFriendsList] = useState<{username: string; displayName: string; tag: number; photoURL?: string; uid: string}[]>([]);
-  const [friendRequests, setFriendRequests] = useState<{username: string; displayName: string; tag: number; photoURL?: string; uid: string}[]>([]);
+  const [friendsList, setFriendsList] = useState<{username: string; displayName: string; tag: number; photoURL?: string; uid: string; bio: string}[]>([]);
+  const [friendRequests, setFriendRequests] = useState<{username: string; displayName: string; tag: number; photoURL?: string; uid: string; bio: string}[]>([]);
   const [reorderingCategories, setReorderingCategories] = useState(false);
   const [categoryOrder, setCategoryOrder] = useState<string[]>([]);
   const [dragCatIndex, setDragCatIndex] = useState<number | null>(null);
@@ -102,8 +102,8 @@ export default function Dashboard() {
   const [bambooInput, setBambooInput] = useState("");
   const [sendingBamboo, setSendingBamboo] = useState(false);
   const [friendsTab, setFriendsTab] = useState<"friends" | "globalChat" | "randomProfiles">("friends");
-  const [randomProfiles, setRandomProfiles] = useState<{uid: string; username: string; displayName: string; tag: number; photoURL: string}[]>([]);
-  const [randomProfilesAll, setRandomProfilesAll] = useState<{uid: string; username: string; displayName: string; tag: number; photoURL: string}[]>([]);
+  const [randomProfiles, setRandomProfiles] = useState<{uid: string; username: string; displayName: string; tag: number; photoURL: string; bio: string}[]>([]);
+  const [randomProfilesAll, setRandomProfilesAll] = useState<{uid: string; username: string; displayName: string; tag: number; photoURL: string; bio: string}[]>([]);
   const [randomShowCount, setRandomShowCount] = useState(10);
   const [globalMessages, setGlobalMessages] = useState<{id: string; text: string; senderUid: string; senderName: string; senderPhoto: string; createdAt: Timestamp | null}[]>([]);
   const [globalChatInput, setGlobalChatInput] = useState("");
@@ -209,18 +209,18 @@ export default function Dashboard() {
   };
 
   const fetchUserList = async (uids: string[]) => {
-    const results: {username: string; displayName: string; tag: number}[] = [];
+    const results: {username: string; displayName: string; tag: number; bio: string}[] = [];
     for (const uid of uids) {
       const snap = await getDoc(doc(db, "users", uid));
       if (snap.exists()) {
         const d = snap.data();
-        results.push({ username: d.username || "", displayName: d.displayName || "", tag: d.tag || 0 });
+        results.push({ username: d.username || "", displayName: d.displayName || "", tag: d.tag || 0, bio: d.bio || "" });
       }
     }
     return results;
   };
 
-  const rankingUsersRef = useRef<{username: string; displayName: string; tag: number; photoURL: string; views: number; likes: number; friends: number}[]>([]);
+  const rankingUsersRef = useRef<{username: string; displayName: string; tag: number; photoURL: string; views: number; likes: number; friends: number; bio: string}[]>([]);
 
   const sortRanking = (users: typeof rankingUsersRef.current, tab: "views" | "likes" | "friends") => {
     return [...users].sort((a, b) => {
@@ -246,6 +246,7 @@ export default function Dashboard() {
           views: data.views || 0,
           likes: data.likes || 0,
           friends: (data.friends as string[] || []).length,
+          bio: data.bio || "",
         };
       });
       rankingUsersRef.current = users;
@@ -281,23 +282,23 @@ export default function Dashboard() {
     setLoadingList(true);
     setShowFriends(true);
     const list = (profile as Record<string, unknown>).friends as string[] || [];
-    const results: {username: string; displayName: string; tag: number; photoURL?: string; uid: string}[] = [];
+    const results: {username: string; displayName: string; tag: number; photoURL?: string; uid: string; bio: string}[] = [];
     for (const uid of list) {
       const snap = await getDoc(doc(db, "users", uid));
       if (snap.exists()) {
         const d = snap.data();
-        results.push({ username: d.username || "", displayName: d.displayName || "", tag: d.tag || 0, photoURL: d.photoURL || "", uid });
+        results.push({ username: d.username || "", displayName: d.displayName || "", tag: d.tag || 0, photoURL: d.photoURL || "", uid, bio: d.bio || "" });
       }
     }
     setFriendsList(results);
 
     const requests = (profile as Record<string, unknown>).friendRequests as string[] || [];
-    const reqResults: {username: string; displayName: string; tag: number; photoURL?: string; uid: string}[] = [];
+    const reqResults: {username: string; displayName: string; tag: number; photoURL?: string; uid: string; bio: string}[] = [];
     for (const uid of requests) {
       const snap = await getDoc(doc(db, "users", uid));
       if (snap.exists()) {
         const d = snap.data();
-        reqResults.push({ username: d.username || "", displayName: d.displayName || "", tag: d.tag || 0, photoURL: d.photoURL || "", uid });
+        reqResults.push({ username: d.username || "", displayName: d.displayName || "", tag: d.tag || 0, photoURL: d.photoURL || "", uid, bio: d.bio || "" });
       }
     }
     setFriendRequests(reqResults);
@@ -377,6 +378,7 @@ export default function Dashboard() {
           displayName: data.displayName || "",
           tag: data.tag || 0,
           photoURL: data.photoURL || "",
+          bio: data.bio || "",
         };
       });
     setRandomProfilesAll(profiles);
@@ -1146,7 +1148,7 @@ export default function Dashboard() {
                   {likedByList.map((u, i) => (
                     <a key={i} href={`/u/${u.tag}`} target="_blank" rel="noopener noreferrer" className={`block px-4 py-3 rounded-2xl ${ROW_COLORS[i % ROW_COLORS.length].color} border ${ROW_COLORS[i % ROW_COLORS.length].border} hover:brightness-95 transition-all`}>
                       <p className="text-sm font-medium">{u.username} <span className="text-pastel-purple text-xs">#{u.tag}</span></p>
-                      <p className="text-xs text-muted">{u.displayName}</p>
+                      {u.bio && <p className="text-[10px] text-muted truncate">{u.bio}</p>}
                     </a>
                   ))}
                 </div>
@@ -1177,7 +1179,7 @@ export default function Dashboard() {
                   {likedProfilesList.map((u, i) => (
                     <a key={i} href={`/u/${u.tag}`} target="_blank" rel="noopener noreferrer" className={`block px-4 py-3 rounded-2xl ${ROW_COLORS[i % ROW_COLORS.length].color} border ${ROW_COLORS[i % ROW_COLORS.length].border} hover:brightness-95 transition-all`}>
                       <p className="text-sm font-medium">{u.username} <span className="text-pastel-purple text-xs">#{u.tag}</span></p>
-                      <p className="text-xs text-muted">{u.displayName}</p>
+                      {u.bio && <p className="text-[10px] text-muted truncate">{u.bio}</p>}
                     </a>
                   ))}
                 </div>
@@ -1237,7 +1239,7 @@ export default function Dashboard() {
                         )}
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">{u.username} <span className="text-pastel-purple text-xs">#{u.tag}</span></p>
-                          <p className="text-xs text-muted truncate">{u.displayName}</p>
+                          {u.bio && <p className="text-[10px] text-muted truncate">{u.bio}</p>}
                         </div>
                       </a>
                     ))
@@ -1276,7 +1278,7 @@ export default function Dashboard() {
                                 )}
                                 <div className="flex-1 min-w-0">
                                   <p className="text-sm font-medium truncate">{u.username} <span className="text-pastel-purple text-xs">#{u.tag}</span></p>
-                                  <p className="text-xs text-muted truncate">{u.displayName}</p>
+                                  {u.bio && <p className="text-[10px] text-muted truncate">{u.bio}</p>}
                                 </div>
                                 <div className="flex gap-1.5 shrink-0">
                                   <button onClick={() => acceptFriend(u.uid)} className="px-2.5 py-1 rounded-xl bg-pastel-mint/30 text-pastel-mint text-xs font-medium hover:bg-pastel-mint/50 transition-colors">수락</button>
@@ -1304,7 +1306,7 @@ export default function Dashboard() {
                                   )}
                                   <div className="min-w-0">
                                     <p className="text-sm font-medium truncate">{u.username} <span className="text-pastel-purple text-xs">#{u.tag}</span></p>
-                                    <p className="text-xs text-muted truncate">{u.displayName}</p>
+                                    {u.bio && <p className="text-[10px] text-muted truncate">{u.bio}</p>}
                                   </div>
                                 </a>
                                 <div className="flex gap-1.5 shrink-0">
@@ -1677,7 +1679,7 @@ export default function Dashboard() {
                       )}
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{u.username} <span className="text-pastel-purple text-xs font-normal">#{u.tag}</span></p>
-                        <p className="text-[10px] text-muted truncate">{u.displayName}</p>
+                        {u.bio && <p className="text-[10px] text-muted truncate">{u.bio}</p>}
                       </div>
                       <span className="text-sm font-semibold text-pastel-purple shrink-0">
                         {rankingTab === "views" ? u.views : rankingTab === "likes" ? u.likes : u.friends}
