@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { doc, getDoc, getDocFromServer, setDoc, updateDoc, runTransaction, serverTimestamp, collection, getDocs, arrayUnion, arrayRemove, addDoc, query, orderBy, onSnapshot, increment, type Timestamp } from "firebase/firestore";
+import { doc, getDoc, getDocFromServer, setDoc, updateDoc, runTransaction, serverTimestamp, collection, getDocs, arrayUnion, arrayRemove, addDoc, query, orderBy, onSnapshot, increment, limitToLast, limit, type Timestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
 import type { User } from "firebase/auth";
@@ -38,6 +38,9 @@ const ALL_CATEGORIES = [
   { key: "pokemon", emoji: "🐾", label: "포켓몬" },
   { key: "youtube", emoji: "▶️", label: "유튜브" },
   { key: "exercise", emoji: "💪", label: "운동" },
+  { key: "webtoon", emoji: "📱", label: "웹툰" },
+  { key: "brand", emoji: "🏷️", label: "브랜드" },
+  { key: "mbti", emoji: "💼", label: "MBTI" },
   { key: "ideal", emoji: "💕", label: "이상형" },
 ];
 
@@ -94,7 +97,14 @@ export default function Dashboard() {
   const [editingUsername, setEditingUsername] = useState(false);
   const [editName, setEditName] = useState("");
   const [editUsername, setEditUsername] = useState("");
-  const [friendsTab, setFriendsTab] = useState<"friends" | "globalChat">("friends");
+  const [showBamboo, setShowBamboo] = useState(false);
+  const [bambooMessages, setBambooMessages] = useState<{id: string; text: string; createdAt: Timestamp | null}[]>([]);
+  const [bambooInput, setBambooInput] = useState("");
+  const [sendingBamboo, setSendingBamboo] = useState(false);
+  const [friendsTab, setFriendsTab] = useState<"friends" | "globalChat" | "randomProfiles">("friends");
+  const [randomProfiles, setRandomProfiles] = useState<{uid: string; username: string; displayName: string; tag: number; photoURL: string}[]>([]);
+  const [randomProfilesAll, setRandomProfilesAll] = useState<{uid: string; username: string; displayName: string; tag: number; photoURL: string}[]>([]);
+  const [randomShowCount, setRandomShowCount] = useState(10);
   const [globalMessages, setGlobalMessages] = useState<{id: string; text: string; senderUid: string; senderName: string; senderPhoto: string; createdAt: Timestamp | null}[]>([]);
   const [globalChatInput, setGlobalChatInput] = useState("");
   const [sendingGlobal, setSendingGlobal] = useState(false);
@@ -338,10 +348,9 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (friendsTab !== "globalChat" || !showFriends) return;
-    const q = query(collection(db, "globalChat"), orderBy("createdAt", "asc"));
+    const q = query(collection(db, "globalChat"), orderBy("createdAt", "asc"), limitToLast(100));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const last100 = snapshot.docs.slice(-100);
-      setGlobalMessages(last100.map((d) => ({
+      setGlobalMessages(snapshot.docs.map((d) => ({
         id: d.id,
         text: d.data().text as string,
         senderUid: d.data().senderUid as string,
@@ -353,6 +362,27 @@ export default function Dashboard() {
     });
     return () => unsubscribe();
   }, [friendsTab, showFriends]);
+
+  const loadRandomProfiles = async () => {
+    if (randomProfilesAll.length > 0) return;
+    const q = query(collection(db, "users"), orderBy("lastActiveAt", "desc"), limit(100));
+    const snapshot = await getDocs(q);
+    const profiles = snapshot.docs
+      .filter((d) => d.id !== user?.uid)
+      .map((d) => {
+        const data = d.data();
+        return {
+          uid: d.id,
+          username: data.username || "",
+          displayName: data.displayName || "",
+          tag: data.tag || 0,
+          photoURL: data.photoURL || "",
+        };
+      });
+    setRandomProfilesAll(profiles);
+    setRandomProfiles(profiles.slice(0, 10));
+    setRandomShowCount(10);
+  };
 
   const sendGlobalChat = async () => {
     if (!user || !globalChatInput.trim() || sendingGlobal) return;
@@ -366,6 +396,32 @@ export default function Dashboard() {
     });
     setGlobalChatInput("");
     setSendingGlobal(false);
+  };
+
+  const openBamboo = () => {
+    setShowBamboo(true);
+    setShowSettings(false);
+    const q = query(collection(db, "bamboo"), orderBy("createdAt", "desc"));
+    onSnapshot(q, (snapshot) => {
+      setBambooMessages(snapshot.docs.map((d) => ({
+        id: d.id,
+        text: d.data().text as string,
+        createdAt: d.data().createdAt as Timestamp | null,
+      })));
+    });
+  };
+
+  const sendBamboo = async () => {
+    if (!bambooInput.trim() || sendingBamboo) return;
+    setSendingBamboo(true);
+    await addDoc(collection(db, "bamboo"), {
+      text: bambooInput.trim(),
+      uid: user?.uid || "",
+      tag: String(userTag || ""),
+      createdAt: serverTimestamp(),
+    });
+    setBambooInput("");
+    setSendingBamboo(false);
   };
 
   const openComments = () => {
@@ -822,7 +878,8 @@ export default function Dashboard() {
                   onChange={(e) => setCustomCategory(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && customCategory.trim()) {
-                      const key = `custom_${customCategory.trim()}`;
+                      const match = ALL_CATEGORIES.find((c) => c.label === customCategory.trim());
+                      const key = match ? match.key : `custom_${customCategory.trim()}`;
                       if (!profile[key]) {
                         setEditingCategory(key);
                         setEditItems([]);
@@ -837,7 +894,8 @@ export default function Dashboard() {
                 <button
                   onClick={() => {
                     if (customCategory.trim()) {
-                      const key = `custom_${customCategory.trim()}`;
+                      const match = ALL_CATEGORIES.find((c) => c.label === customCategory.trim());
+                      const key = match ? match.key : `custom_${customCategory.trim()}`;
                       if (!profile[key]) {
                         setEditingCategory(key);
                         setEditItems([]);
@@ -1076,7 +1134,7 @@ export default function Dashboard() {
         {showLikedBy && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-6">
             <div className="bg-card rounded-3xl p-6 w-full max-w-sm shadow-xl">
-              <h3 className="text-base font-semibold text-center mb-4">🩷 좋아요 받은 사람</h3>
+              <h3 className="text-base font-semibold text-center mb-4">좋아요 눌러준 사람</h3>
               {loadingList ? (
                 <div className="flex justify-center py-6">
                   <div className="w-6 h-6 rounded-full border-2 border-pastel-purple border-t-transparent animate-spin" />
@@ -1138,22 +1196,66 @@ export default function Dashboard() {
         {showFriends && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-6">
             <div className="bg-card rounded-3xl p-5 w-full max-w-sm shadow-xl flex flex-col" style={{ height: "75vh" }}>
-              <div className="flex gap-2 mb-4">
+              <div className="flex gap-1.5 mb-4">
                 <button
                   onClick={() => setFriendsTab("friends")}
-                  className={`flex-1 py-2 rounded-xl text-sm font-medium transition-colors ${friendsTab === "friends" ? "bg-pastel-purple/20 text-pastel-purple" : "bg-background text-muted hover:bg-pastel-purple/10"}`}
+                  className={`flex-1 py-2 rounded-xl text-xs font-medium transition-colors ${friendsTab === "friends" ? "bg-pastel-purple/20 text-pastel-purple" : "bg-background text-muted hover:bg-pastel-purple/10"}`}
                 >
                   👫 친구
                 </button>
                 <button
                   onClick={() => setFriendsTab("globalChat")}
-                  className={`flex-1 py-2 rounded-xl text-sm font-medium transition-colors ${friendsTab === "globalChat" ? "bg-pastel-mint/20 text-pastel-mint" : "bg-background text-muted hover:bg-pastel-mint/10"}`}
+                  className={`flex-1 py-2 rounded-xl text-xs font-medium transition-colors ${friendsTab === "globalChat" ? "bg-pastel-mint/20 text-pastel-mint" : "bg-background text-muted hover:bg-pastel-mint/10"}`}
                 >
                   💬 전체 채팅
                 </button>
+                <button
+                  onClick={() => { setFriendsTab("randomProfiles"); loadRandomProfiles(); }}
+                  className={`flex-1 py-2 rounded-xl text-xs font-medium transition-colors ${friendsTab === "randomProfiles" ? "bg-pastel-blue/20 text-pastel-blue" : "bg-background text-muted hover:bg-pastel-blue/10"}`}
+                >
+                  🎲 랜덤 프로필
+                </button>
               </div>
 
-              {friendsTab === "friends" ? (
+              {friendsTab === "randomProfiles" ? (
+                <div className="flex-1 overflow-y-auto flex flex-col gap-2">
+                  {randomProfiles.length === 0 ? (
+                    <p className="text-sm text-muted text-center py-8">프로필이 없어요</p>
+                  ) : (
+                    randomProfiles.map((u, i) => (
+                      <a
+                        key={u.uid}
+                        href={`/u/${u.tag}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`flex items-center gap-3 px-4 py-3 rounded-2xl ${ROW_COLORS[i % ROW_COLORS.length].color} border ${ROW_COLORS[i % ROW_COLORS.length].border} hover:brightness-95 transition-all`}
+                      >
+                        {u.photoURL ? (
+                          <img src={u.photoURL} alt="" className="w-8 h-8 rounded-full border border-pastel-purple/20 shrink-0" referrerPolicy="no-referrer" />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pastel-pink to-pastel-purple shrink-0" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{u.username} <span className="text-pastel-purple text-xs">#{u.tag}</span></p>
+                          <p className="text-xs text-muted truncate">{u.displayName}</p>
+                        </div>
+                      </a>
+                    ))
+                  )}
+                  {randomShowCount < randomProfilesAll.length && (
+                    <button
+                      onClick={() => {
+                        const next = randomShowCount + 10;
+                        setRandomShowCount(next);
+                        setRandomProfiles(randomProfilesAll.slice(0, next));
+                      }}
+                      className="w-full py-2.5 rounded-2xl bg-pastel-blue/10 border border-pastel-blue/20 text-sm text-pastel-blue font-medium hover:bg-pastel-blue/20 transition-colors"
+                    >
+                      더보기
+                    </button>
+                  )}
+                </div>
+              ) : friendsTab === "friends" ? (
                 <>
                   {loadingList ? (
                     <div className="flex justify-center py-6">
@@ -1246,11 +1348,16 @@ export default function Dashboard() {
                               <div className={`px-3 py-2 rounded-2xl text-sm ${isMine ? "bg-pastel-mint/20 text-foreground rounded-br-md" : "bg-pastel-purple/10 text-foreground rounded-bl-md"}`}>
                                 <p className="break-words">{msg.text}</p>
                               </div>
-                              {msg.createdAt && (
-                                <p className={`text-[9px] text-muted mt-0.5 ${isMine ? "text-right" : ""}`}>
-                                  {msg.createdAt.toDate().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}
-                                </p>
-                              )}
+                              <div className={`flex items-center gap-1.5 mt-0.5 ${isMine ? "justify-end" : ""}`}>
+                                {msg.createdAt && (
+                                  <span className="text-[9px] text-muted">
+                                    {msg.createdAt.toDate().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}
+                                  </span>
+                                )}
+                                {isMine && (
+                                  <button onClick={async () => { const { deleteDoc: delDoc } = await import("firebase/firestore"); await delDoc(doc(db, "globalChat", msg.id)); }} className="text-[9px] text-muted hover:text-pastel-pink transition-colors">삭제</button>
+                                )}
+                              </div>
                             </div>
                           </div>
                         );
@@ -1280,7 +1387,7 @@ export default function Dashboard() {
               )}
 
               <button
-                onClick={() => { setShowFriends(false); setFriendsTab("friends"); }}
+                onClick={() => { setShowFriends(false); setFriendsTab("friends"); setRandomProfilesAll([]); setRandomProfiles([]); }}
                 className="w-full mt-3 py-3 rounded-2xl bg-gradient-to-r from-pastel-purple to-pastel-pink text-white font-medium"
               >
                 닫기
@@ -1326,6 +1433,12 @@ export default function Dashboard() {
                   className="w-full px-4 py-3 rounded-2xl bg-pastel-purple/10 border border-pastel-purple/20 text-sm text-foreground hover:bg-pastel-purple/20 transition-colors text-left"
                 >
                   로그아웃
+                </button>
+                <button
+                  onClick={openBamboo}
+                  className="w-full px-4 py-3 rounded-2xl bg-pastel-mint/10 border border-pastel-mint/20 text-sm text-foreground hover:bg-pastel-mint/20 transition-colors text-left"
+                >
+                  🎋 대나무숲
                 </button>
                 <button
                   onClick={() => {
@@ -1459,6 +1572,58 @@ export default function Dashboard() {
                   전송
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ===== 대나무숲 모달 ===== */}
+        {showBamboo && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-6">
+            <div className="bg-card rounded-3xl p-5 w-full max-w-sm shadow-xl flex flex-col" style={{ maxHeight: "80vh" }}>
+              <h3 className="text-base font-semibold text-center mb-2">🎋 대나무숲</h3>
+              <p className="text-[11px] text-muted text-center mb-4 leading-relaxed">대나무숲은 사이트에 관한 의견을 자유롭게 작성하는 곳입니다. 익명이니 안심하고 바라는 점을 적어주세요!</p>
+
+              <div className="flex-1 overflow-y-auto flex flex-col gap-2.5 mb-3" style={{ maxHeight: "45vh" }}>
+                {bambooMessages.length === 0 ? (
+                  <p className="text-sm text-muted text-center py-8">아직 글이 없어요</p>
+                ) : (
+                  bambooMessages.map((msg) => (
+                    <div key={msg.id} className="px-4 py-3 rounded-2xl bg-pastel-mint/10 border border-pastel-mint/15">
+                      <p className="text-sm text-foreground/80 break-words">{msg.text}</p>
+                      {msg.createdAt && (
+                        <p className="text-[10px] text-muted mt-1.5">
+                          {msg.createdAt.toDate().toLocaleDateString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                        </p>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="flex gap-2 pt-3 border-t border-pastel-mint/15">
+                <input
+                  value={bambooInput}
+                  onChange={(e) => setBambooInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) sendBamboo(); }}
+                  placeholder="익명으로 의견을 남겨보세요"
+                  maxLength={300}
+                  className="flex-1 px-4 py-2.5 rounded-2xl bg-background border border-pastel-mint/20 text-sm focus:outline-none focus:border-pastel-mint/50"
+                />
+                <button
+                  onClick={sendBamboo}
+                  disabled={!bambooInput.trim() || sendingBamboo}
+                  className="px-4 py-2.5 rounded-2xl bg-pastel-mint text-white text-sm font-medium hover:bg-pastel-mint/80 disabled:opacity-40 transition-colors shrink-0"
+                >
+                  전송
+                </button>
+              </div>
+
+              <button
+                onClick={() => setShowBamboo(false)}
+                className="w-full mt-3 py-3 rounded-2xl bg-gradient-to-r from-pastel-mint to-pastel-blue text-white font-medium hover:shadow-lg transition-all"
+              >
+                닫기
+              </button>
             </div>
           </div>
         )}

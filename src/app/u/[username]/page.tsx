@@ -56,6 +56,9 @@ const CATEGORIES = [
   { key: "pokemon", emoji: "🐾", label: "포켓몬" },
   { key: "youtube", emoji: "▶️", label: "유튜브" },
   { key: "exercise", emoji: "💪", label: "운동" },
+  { key: "webtoon", emoji: "📱", label: "웹툰" },
+  { key: "brand", emoji: "🏷️", label: "브랜드" },
+  { key: "mbti", emoji: "💼", label: "MBTI" },
   { key: "ideal", emoji: "💕", label: "이상형" },
 ];
 
