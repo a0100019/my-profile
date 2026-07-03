@@ -135,7 +135,7 @@ export default function Home() {
               <div className="text-xs text-foreground/70 leading-relaxed flex flex-col gap-3">
                 <div>
                   <p className="font-semibold text-foreground mb-1">제1조 (목적)</p>
-                  <p>본 약관은 profile.me(이하 &quot;서비스&quot;)의 이용 조건 및 절차, 이용자와 서비스 제공자의 권리·의무를 규정함을 목적으로 합니다.</p>
+                  <p>본 약관은 mybio.kr(이하 &quot;서비스&quot;)의 이용 조건 및 절차, 이용자와 서비스 제공자의 권리·의무를 규정함을 목적으로 합니다.</p>
                 </div>
                 <div>
                   <p className="font-semibold text-foreground mb-1">제2조 (정의)</p>

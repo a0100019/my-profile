@@ -8,7 +8,7 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "profile.me",
+  title: "mybio.kr",
   description: "나만의 취향 프로필을 만들고 친구에게 공유하세요",
 };
 
