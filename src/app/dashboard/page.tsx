@@ -1491,9 +1491,7 @@ export default function Dashboard() {
                         </div>
                         <p className="text-sm text-foreground/80 break-words">{c.text}</p>
                       </div>
-                      {c.senderUid === user?.uid && (
-                        <button onClick={() => deleteComment(c.id)} className="text-[10px] text-muted hover:text-pastel-pink shrink-0 self-start mt-1">삭제</button>
-                      )}
+                      <button onClick={() => deleteComment(c.id)} className="text-[10px] text-muted hover:text-pastel-pink shrink-0 self-start mt-1">삭제</button>
                     </div>
                   ))
                 )}
