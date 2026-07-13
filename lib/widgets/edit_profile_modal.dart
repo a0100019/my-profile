@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../constants.dart';
 
 class EditProfileModal extends StatefulWidget {
@@ -29,6 +30,7 @@ class _EditProfileModalState extends State<EditProfileModal> {
   late List<Map<String, String>> _fields;
   final _newLabelController = TextEditingController();
   final _newValueController = TextEditingController();
+  bool _saving = false;
 
   @override
   void initState() {
@@ -77,13 +79,13 @@ class _EditProfileModalState extends State<EditProfileModal> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _label('이름'),
-                  _input(_nameController),
+                  _input(_nameController, maxLength: 10),
                   const SizedBox(height: 12),
                   _label('유저네임'),
-                  _input(_usernameController),
+                  _input(_usernameController, maxLength: 15),
                   const SizedBox(height: 12),
                   _label('한줄 소개'),
-                  _input(_bioController),
+                  _input(_bioController, maxLength: 200, maxLines: 3),
                   const SizedBox(height: 16),
                   _label('정보 필드'),
                   ..._fields.asMap().entries.map((entry) {
@@ -169,14 +171,20 @@ class _EditProfileModalState extends State<EditProfileModal> {
             child: SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: _save,
+                onPressed: _saving ? null : _save,
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   backgroundColor: AppColors.pastelPurple,
                   foregroundColor: Colors.white,
                 ),
-                child: const Text('저장', style: TextStyle(fontWeight: FontWeight.w500)),
+                child: _saving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Text('저장', style: TextStyle(fontWeight: FontWeight.w500)),
               ),
             ),
           ),
@@ -192,9 +200,11 @@ class _EditProfileModalState extends State<EditProfileModal> {
     );
   }
 
-  Widget _input(TextEditingController controller) {
+  Widget _input(TextEditingController controller, {int? maxLength, int maxLines = 1}) {
     return TextField(
       controller: controller,
+      maxLength: maxLength,
+      maxLines: maxLines,
       decoration: InputDecoration(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -204,13 +214,42 @@ class _EditProfileModalState extends State<EditProfileModal> {
     );
   }
 
-  void _save() {
+  Future<void> _save() async {
+    final newUsername = _usernameController.text.trim();
+    if (newUsername.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('유저네임을 입력해주세요.')),
+      );
+      return;
+    }
+
+    setState(() => _saving = true);
+
+    final currentUsername = widget.profile['username'] as String? ?? '';
+    if (newUsername != currentUsername) {
+      final dupSnap = await FirebaseFirestore.instance
+          .collection('users')
+          .where('username', isEqualTo: newUsername)
+          .limit(1)
+          .get();
+      final taken = dupSnap.docs.isNotEmpty && dupSnap.docs.first.id != widget.user?.uid;
+      if (taken) {
+        if (!mounted) return;
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('이미 사용 중인 유저네임이에요.')),
+        );
+        return;
+      }
+    }
+
     widget.onSave({
       'displayName': _nameController.text.trim(),
-      'username': _usernameController.text.trim(),
+      'username': newUsername,
       'bio': _bioController.text.trim(),
       'infoFields': _fields.map((f) => {'label': f['label'], 'value': f['value']}).toList(),
     });
+    if (!mounted) return;
     Navigator.pop(context);
   }
 }

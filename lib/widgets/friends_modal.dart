@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -35,6 +36,12 @@ class _FriendsModalState extends State<FriendsModal> with SingleTickerProviderSt
   int _randomShowCount = 10;
   bool _loading = true;
 
+  // 유저 검색
+  final _searchController = TextEditingController();
+  List<Map<String, dynamic>> _searchResults = [];
+  bool _searching = false;
+  Timer? _searchDebounce;
+
   // 채팅
   Map<String, dynamic>? _chatTarget;
   final _chatController = TextEditingController();
@@ -58,7 +65,41 @@ class _FriendsModalState extends State<FriendsModal> with SingleTickerProviderSt
     _chatController.dispose();
     _globalChatController.dispose();
     _scrollController.dispose();
+    _searchController.dispose();
+    _searchDebounce?.cancel();
     super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    setState(() {});
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 400), () => _searchUsers(value));
+  }
+
+  Future<void> _searchUsers(String query) async {
+    final q = query.trim();
+    if (q.isEmpty) {
+      setState(() => _searchResults = []);
+      return;
+    }
+    setState(() => _searching = true);
+    final snapshot = await _db.collection('users')
+        .where('username', isGreaterThanOrEqualTo: q)
+        .where('username', isLessThan: '$q')
+        .limit(20)
+        .get();
+    final results = snapshot.docs
+        .where((d) => d.id != widget.user?.uid)
+        .map((d) {
+          final data = d.data();
+          return {'uid': d.id, 'username': data['username'], 'displayName': data['displayName'], 'tag': data['tag'], 'photoURL': data['photoURL'] ?? '', 'bio': data['bio'] ?? ''};
+        })
+        .toList();
+    if (!mounted) return;
+    setState(() {
+      _searchResults = results;
+      _searching = false;
+    });
   }
 
   Future<void> _loadFriends() async {
@@ -132,6 +173,26 @@ class _FriendsModalState extends State<FriendsModal> with SingleTickerProviderSt
     widget.onProfileUpdate({
       'friendRequests': (widget.profile['friendRequests'] as List?)?.where((id) => id != targetUid).toList() ?? [],
     });
+  }
+
+  void _confirmRemoveFriend(String targetUid, String username) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('친구 삭제'),
+        content: Text('"$username"님을 친구에서 삭제할까요?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('취소')),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _removeFriend(targetUid);
+            },
+            child: Text('삭제', style: TextStyle(color: AppColors.pastelPink)),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _removeFriend(String targetUid) async {
@@ -316,7 +377,7 @@ class _FriendsModalState extends State<FriendsModal> with SingleTickerProviderSt
             ),
             const SizedBox(width: 8),
             GestureDetector(
-              onTap: () => _removeFriend(user['uid']),
+              onTap: () => _confirmRemoveFriend(user['uid'], user['username'] ?? ''),
               child: Icon(Icons.person_remove, size: 16, color: AppColors.muted),
             ),
           ],
@@ -357,48 +418,47 @@ class _FriendsModalState extends State<FriendsModal> with SingleTickerProviderSt
   }
 
   Widget _buildRandomTab() {
+    final isSearching = _searchController.text.trim().isNotEmpty;
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: TextField(
+            controller: _searchController,
+            onChanged: _onSearchChanged,
+            decoration: InputDecoration(
+              hintText: '유저네임으로 검색',
+              hintStyle: TextStyle(fontSize: 13, color: AppColors.muted),
+              prefixIcon: Icon(Icons.search, size: 20, color: AppColors.muted),
+              contentPadding: const EdgeInsets.symmetric(vertical: 8),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: AppColors.pastelPurple.withValues(alpha: 0.3))),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: AppColors.pastelPurple.withValues(alpha: 0.3))),
+            ),
+            style: const TextStyle(fontSize: 13),
+          ),
+        ),
+        Expanded(child: isSearching ? _buildSearchResults() : _buildRandomList()),
+      ],
+    );
+  }
+
+  Widget _buildSearchResults() {
+    if (_searching) return const Center(child: CircularProgressIndicator(color: AppColors.pastelPurple));
+    if (_searchResults.isEmpty) return const Center(child: Text('검색 결과가 없어요', style: TextStyle(color: AppColors.muted)));
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      children: _searchResults.map(_profileTile).toList(),
+    );
+  }
+
+  Widget _buildRandomList() {
     if (_allRandomProfiles.isEmpty) {
       return const Center(child: CircularProgressIndicator(color: AppColors.pastelPurple));
     }
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       children: [
-        ..._randomProfiles.map((p) => GestureDetector(
-          onTap: () {
-            Navigator.pop(context);
-            Navigator.push(context, MaterialPageRoute(builder: (_) => PublicProfileScreen(tag: '${p['tag']}')));
-          },
-          child: Container(
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(12)),
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 18,
-                backgroundImage: (p['photoURL'] ?? '').isNotEmpty ? NetworkImage(p['photoURL']) : null,
-                backgroundColor: AppColors.pastelPurple.withValues(alpha: 0.3),
-                child: (p['photoURL'] ?? '').isEmpty ? const Icon(Icons.person, size: 18) : null,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(children: [
-                      Text(p['username'] ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-                      const SizedBox(width: 4),
-                      Text('#${p['tag']}', style: TextStyle(fontSize: 10, color: AppColors.muted)),
-                    ]),
-                    if ((p['bio'] ?? '').isNotEmpty)
-                      Text(p['bio'], maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10, color: AppColors.muted)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        )),
+        ..._randomProfiles.map(_profileTile),
         if (_randomShowCount < _allRandomProfiles.length)
           GestureDetector(
             onTap: () {
@@ -417,6 +477,45 @@ class _FriendsModalState extends State<FriendsModal> with SingleTickerProviderSt
             ),
           ),
       ],
+    );
+  }
+
+  Widget _profileTile(Map<String, dynamic> p) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.pop(context);
+        Navigator.push(context, MaterialPageRoute(builder: (_) => PublicProfileScreen(tag: '${p['tag']}')));
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(12)),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 18,
+              backgroundImage: (p['photoURL'] ?? '').isNotEmpty ? NetworkImage(p['photoURL']) : null,
+              backgroundColor: AppColors.pastelPurple.withValues(alpha: 0.3),
+              child: (p['photoURL'] ?? '').isEmpty ? const Icon(Icons.person, size: 18) : null,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    Text(p['username'] ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                    const SizedBox(width: 4),
+                    Text('#${p['tag']}', style: TextStyle(fontSize: 10, color: AppColors.muted)),
+                  ]),
+                  if ((p['bio'] ?? '').isNotEmpty)
+                    Text(p['bio'], maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10, color: AppColors.muted)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -482,6 +581,26 @@ class _FriendsModalState extends State<FriendsModal> with SingleTickerProviderSt
     );
   }
 
+  void _confirmDeleteChatMessage(String docId) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('메시지 삭제'),
+        content: const Text('이 메시지를 삭제할까요?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('취소')),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _db.collection('globalChat').doc(docId).delete();
+            },
+            child: Text('삭제', style: TextStyle(color: AppColors.pastelPink)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _chatBubble(String sender, String text, bool isMe, String docId, {bool isGlobal = false}) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -507,7 +626,7 @@ class _FriendsModalState extends State<FriendsModal> with SingleTickerProviderSt
                 ),
                 if (isMe && isGlobal)
                   GestureDetector(
-                    onTap: () => _db.collection('globalChat').doc(docId).delete(),
+                    onTap: () => _confirmDeleteChatMessage(docId),
                     child: Padding(
                       padding: const EdgeInsets.only(top: 2),
                       child: Text('삭제', style: TextStyle(fontSize: 10, color: AppColors.muted)),
@@ -532,6 +651,8 @@ class _FriendsModalState extends State<FriendsModal> with SingleTickerProviderSt
           Expanded(
             child: TextField(
               controller: controller,
+              maxLength: 300,
+              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
               decoration: InputDecoration(
                 hintText: '메시지 입력...',
                 hintStyle: TextStyle(fontSize: 13, color: AppColors.muted),

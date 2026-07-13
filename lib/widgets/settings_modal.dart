@@ -4,11 +4,13 @@ import '../constants.dart';
 class SettingsModal extends StatelessWidget {
   final VoidCallback onLogout;
   final VoidCallback onOpenBamboo;
+  final VoidCallback onDeleteAccount;
 
   const SettingsModal({
     super.key,
     required this.onLogout,
     required this.onOpenBamboo,
+    required this.onDeleteAccount,
   });
 
   @override
@@ -36,10 +38,8 @@ class SettingsModal extends StatelessWidget {
             Navigator.pop(context);
             _showTerms(context);
           }),
-          _settingItem('🚪 로그아웃', () {
-            Navigator.pop(context);
-            onLogout();
-          }, isDestructive: true),
+          _settingItem('🚪 로그아웃', () => _confirmLogout(context), isDestructive: true),
+          _settingItem('❌ 회원 탈퇴', () => _confirmDeleteAccount(context), isDestructive: true),
           const SizedBox(height: 16),
         ],
       ),
@@ -53,6 +53,48 @@ class SettingsModal extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
         child: Text(label, style: TextStyle(fontSize: 14, color: isDestructive ? AppColors.pastelPink : AppColors.foreground)),
+      ),
+    );
+  }
+
+  void _confirmLogout(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('로그아웃'),
+        content: const Text('로그아웃 하시겠어요?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('취소')),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.pop(context);
+              onLogout();
+            },
+            child: Text('로그아웃', style: TextStyle(color: AppColors.pastelPink)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDeleteAccount(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('회원 탈퇴'),
+        content: const Text('탈퇴 시 프로필, 카테고리, 댓글 등 모든 데이터가 즉시 삭제되며 되돌릴 수 없어요. 정말 탈퇴하시겠어요?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('취소')),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.pop(context);
+              onDeleteAccount();
+            },
+            child: Text('탈퇴', style: TextStyle(color: AppColors.pastelPink)),
+          ),
+        ],
       ),
     );
   }

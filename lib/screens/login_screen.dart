@@ -38,7 +38,11 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       debugPrint('로그인 실패: $e');
+      if (!mounted) return;
       setState(() => _loading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('로그인에 실패했어요. 다시 시도해주세요.')),
+      );
     }
   }
 

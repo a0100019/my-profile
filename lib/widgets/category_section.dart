@@ -7,6 +7,7 @@ class CategorySection extends StatefulWidget {
   final int colorIndex;
   final Function(List<Map<String, dynamic>>) onSave;
   final VoidCallback onRemove;
+  final Widget? dragHandle;
 
   const CategorySection({
     super.key,
@@ -15,6 +16,7 @@ class CategorySection extends StatefulWidget {
     required this.colorIndex,
     required this.onSave,
     required this.onRemove,
+    this.dragHandle,
   });
 
   @override
@@ -23,9 +25,13 @@ class CategorySection extends StatefulWidget {
 
 class _CategorySectionState extends State<CategorySection> {
   bool _expanded = false;
-  bool _editing = false;
   final _inputController = TextEditingController();
-  List<Map<String, dynamic>> _editItems = [];
+
+  @override
+  void dispose() {
+    _inputController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -50,6 +56,10 @@ class _CategorySectionState extends State<CategorySection> {
                   const SizedBox(width: 8),
                   Text('${widget.items.length}', style: TextStyle(fontSize: 12, color: AppColors.muted)),
                   const Spacer(),
+                  if (widget.dragHandle != null) ...[
+                    widget.dragHandle!,
+                    const SizedBox(width: 8),
+                  ],
                   Icon(_expanded ? Icons.expand_less : Icons.expand_more, size: 20, color: AppColors.muted),
                 ],
               ),
@@ -60,151 +70,134 @@ class _CategorySectionState extends State<CategorySection> {
             // 아이템 목록
             if (widget.items.isEmpty)
               Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text('아직 항목이 없어요', style: TextStyle(fontSize: 13, color: AppColors.muted)),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('아직 항목이 없어요', style: TextStyle(fontSize: 13, color: AppColors.muted)),
+                ),
               )
             else
-              ...widget.items.asMap().entries.map((entry) {
-                final item = entry.value;
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: AppColors.card.withValues(alpha: 0.6),
-                      borderRadius: BorderRadius.circular(12),
+              ReorderableListView(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                buildDefaultDragHandles: false,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                proxyDecorator: (child, index, animation) => Material(
+                  color: Colors.transparent,
+                  child: child,
+                ),
+                onReorderItem: _reorderItem,
+                children: widget.items.asMap().entries.map((entry) {
+                  final i = entry.key;
+                  final item = entry.value;
+                  return Padding(
+                    key: ValueKey('categoryItem_$i'),
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: AppColors.card.withValues(alpha: 0.6),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          ReorderableDragStartListener(
+                            index: i,
+                            child: Icon(Icons.drag_handle, size: 16, color: AppColors.muted),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(child: Text(item['text'] ?? '', style: const TextStyle(fontSize: 13))),
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: () => _removeItem(i),
+                            child: Icon(Icons.close, size: 16, color: AppColors.pastelPink),
+                          ),
+                        ],
+                      ),
                     ),
-                    child: Text(item['text'] ?? '', style: const TextStyle(fontSize: 13)),
-                  ),
-                );
-              }),
+                  );
+                }).toList(),
+              ),
 
-            // 편집/삭제 버튼
+            const SizedBox(height: 8),
+
+            // 항목 추가 (항상 표시)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _inputController,
+                      maxLength: 50,
+                      buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                      decoration: InputDecoration(
+                        hintText: '새 항목 추가',
+                        hintStyle: TextStyle(fontSize: 13, color: AppColors.muted),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.pastelPurple.withValues(alpha: 0.3))),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.pastelPurple.withValues(alpha: 0.3))),
+                        isDense: true,
+                      ),
+                      style: const TextStyle(fontSize: 13),
+                      onSubmitted: (_) => _addItem(),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: _addItem,
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.pastelPurple,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.add, size: 16, color: Colors.white),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // 카테고리 삭제
             Padding(
               padding: const EdgeInsets.all(12),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   GestureDetector(
-                    onTap: _startEditing,
-                    child: Text('편집', style: TextStyle(fontSize: 12, color: AppColors.pastelPurple)),
-                  ),
-                  const SizedBox(width: 16),
-                  GestureDetector(
                     onTap: () => _confirmRemove(context),
-                    child: Text('삭제', style: TextStyle(fontSize: 12, color: AppColors.pastelPink)),
+                    child: Text('카테고리 삭제', style: TextStyle(fontSize: 12, color: AppColors.pastelPink)),
                   ),
                 ],
               ),
             ),
-
-            // 편집 모드
-            if (_editing) _buildEditMode(),
           ],
         ],
       ),
     );
   }
 
-  void _startEditing() {
-    setState(() {
-      _editing = true;
-      _editItems = List.from(widget.items.map((e) => Map<String, dynamic>.from(e)));
-    });
+  void _reorderItem(int oldIndex, int newIndex) {
+    final items = List<Map<String, dynamic>>.from(widget.items.map((e) => Map<String, dynamic>.from(e)));
+    final item = items.removeAt(oldIndex);
+    items.insert(newIndex, item);
+    widget.onSave(items);
   }
 
-  Widget _buildEditMode() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: AppColors.pastelPurple.withValues(alpha: 0.15))),
-      ),
-      child: Column(
-        children: [
-          ..._editItems.asMap().entries.map((entry) {
-            final i = entry.key;
-            final item = entry.value;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                children: [
-                  Expanded(child: Text(item['text'] ?? '', style: const TextStyle(fontSize: 13))),
-                  GestureDetector(
-                    onTap: () => setState(() => _editItems.removeAt(i)),
-                    child: Icon(Icons.close, size: 16, color: AppColors.pastelPink),
-                  ),
-                ],
-              ),
-            );
-          }),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _inputController,
-                  decoration: InputDecoration(
-                    hintText: '새 항목 추가',
-                    hintStyle: TextStyle(fontSize: 13, color: AppColors.muted),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.pastelPurple.withValues(alpha: 0.3))),
-                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.pastelPurple.withValues(alpha: 0.3))),
-                    isDense: true,
-                  ),
-                  style: const TextStyle(fontSize: 13),
-                  onSubmitted: (_) => _addItem(),
-                ),
-              ),
-              const SizedBox(width: 8),
-              GestureDetector(
-                onTap: _addItem,
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppColors.pastelPurple,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.add, size: 16, color: Colors.white),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              GestureDetector(
-                onTap: () => setState(() => _editing = false),
-                child: Text('취소', style: TextStyle(fontSize: 13, color: AppColors.muted)),
-              ),
-              const SizedBox(width: 16),
-              GestureDetector(
-                onTap: () {
-                  widget.onSave(_editItems);
-                  setState(() => _editing = false);
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(colors: [AppColors.pastelPurple, AppColors.pastelPink]),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Text('저장', style: TextStyle(fontSize: 13, color: Colors.white, fontWeight: FontWeight.w500)),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
+  void _removeItem(int index) {
+    final items = List<Map<String, dynamic>>.from(widget.items.map((e) => Map<String, dynamic>.from(e)));
+    items.removeAt(index);
+    widget.onSave(items);
   }
 
   void _addItem() {
     final text = _inputController.text.trim();
     if (text.isEmpty) return;
-    setState(() {
-      _editItems.add({'text': text, 'link': '', 'image': ''});
-      _inputController.clear();
-    });
+    final items = List<Map<String, dynamic>>.from(widget.items.map((e) => Map<String, dynamic>.from(e)));
+    items.add({'text': text, 'link': '', 'image': ''});
+    widget.onSave(items);
+    _inputController.clear();
   }
 
   void _confirmRemove(BuildContext context) {

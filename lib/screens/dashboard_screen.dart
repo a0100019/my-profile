@@ -34,6 +34,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<String> _categoryOrder = [];
   int _commentCount = 0;
   bool _copied = false;
+  final _customCategoryController = TextEditingController();
 
   User? get _user => _auth.currentUser;
   String get _defaultUsername => (_user?.email?.split('@')[0] ?? '').substring(0, (_user?.email?.split('@')[0] ?? '').length.clamp(0, 15));
@@ -44,6 +45,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     _loadProfile();
+  }
+
+  @override
+  void dispose() {
+    _customCategoryController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadProfile() async {
@@ -168,30 +175,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _actionButton(
-                          _copied ? '복사됨!' : '프로필 공유',
-                          _copied ? Icons.check : Icons.share,
-                          _handleShare,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _actionButton(
-                          '사진 변경',
-                          Icons.camera_alt,
-                          _changePhoto,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 16),
 
                   ReorderableListView(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
+                    buildDefaultDragHandles: false,
                     proxyDecorator: (child, index, animation) => Material(
                       color: Colors.transparent,
                       child: child,
@@ -211,11 +200,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           colorIndex: colorIndex,
                           onSave: (newItems) => _saveCategory(cat.key, newItems),
                           onRemove: () => _removeCategory(cat.key),
+                          dragHandle: ReorderableDragStartListener(
+                            index: i,
+                            child: Icon(Icons.drag_handle, size: 20, color: AppColors.muted),
+                          ),
                         ),
                       );
                     }).toList(),
                   ),
 
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _actionButton(
+                          _copied ? '복사됨!' : '프로필 공유',
+                          _copied ? Icons.check : Icons.share,
+                          _handleShare,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _actionButton(
+                          '사진 변경',
+                          Icons.camera_alt,
+                          _changePhoto,
+                        ),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 16),
                   _buildAddCategory(),
                 ],
@@ -339,12 +352,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildCustomCategoryInput() {
-    final controller = TextEditingController();
     return Row(
       children: [
         Expanded(
           child: TextField(
-            controller: controller,
+            controller: _customCategoryController,
+            maxLength: 12,
+            buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
             decoration: InputDecoration(
               hintText: '원하는 카테고리를 만들어봐요',
               hintStyle: TextStyle(fontSize: 12, color: AppColors.muted),
@@ -359,21 +373,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
             style: const TextStyle(fontSize: 13),
+            onSubmitted: (_) => _submitCustomCategory(),
           ),
         ),
         const SizedBox(width: 8),
         GestureDetector(
-          onTap: () {
-            final text = controller.text.trim();
-            if (text.isEmpty) return;
-            final match = allCategories.where((c) => c.label == text).firstOrNull;
-            if (match != null) {
-              _addCategory(match.key);
-            } else {
-              _addCategory('custom_$text');
-            }
-            controller.clear();
-          },
+          onTap: _submitCustomCategory,
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
@@ -385,6 +390,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
       ],
     );
+  }
+
+  void _submitCustomCategory() {
+    final raw = _customCategoryController.text.trim();
+    if (raw.isEmpty) return;
+    // Firestore 필드 경로에 쓸 수 없는 문자 제거 (., /, [, ], *, ~)
+    final text = raw.replaceAll(RegExp(r'[./\[\]*~]'), '');
+    if (text.isEmpty) return;
+
+    final match = allCategories.where((c) => c.label == text).firstOrNull;
+    final key = match?.key ?? 'custom_$text';
+
+    if (profile[key] != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('이미 추가된 카테고리예요.')),
+      );
+      return;
+    }
+
+    _addCategory(key);
+    _customCategoryController.clear();
   }
 
   List<Map<String, dynamic>> _getCategoryItems(String key) {
@@ -434,6 +460,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       setState(() {});
     } catch (e) {
       debugPrint('사진 변경 실패: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('사진 변경에 실패했어요. 다시 시도해주세요.')),
+      );
     }
   }
 
@@ -458,8 +488,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Navigator.pop(context);
           _showBamboo();
         },
+        onDeleteAccount: _deleteAccount,
       ),
     );
+  }
+
+  Future<void> _deleteAccount() async {
+    final user = _user;
+    if (user == null) return;
+    try {
+      final commentsSnap = await _db.collection('users').doc(user.uid).collection('comments').get();
+      for (final doc in commentsSnap.docs) {
+        await doc.reference.delete();
+      }
+      await _db.collection('users').doc(user.uid).delete();
+      try {
+        await user.delete();
+      } on FirebaseAuthException catch (e) {
+        if (e.code == 'requires-recent-login') {
+          await _auth.signOut();
+        } else {
+          rethrow;
+        }
+      }
+    } catch (e) {
+      debugPrint('회원 탈퇴 실패: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('탈퇴 처리에 실패했어요. 다시 시도해주세요.')),
+      );
+    }
   }
 
   void _showFriends() {
@@ -741,6 +799,8 @@ class _BambooModalState extends State<_BambooModal> {
                 Expanded(
                   child: TextField(
                     controller: _controller,
+                    maxLength: 500,
+                    buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
                     decoration: InputDecoration(
                       hintText: '익명으로 작성하기...',
                       hintStyle: TextStyle(fontSize: 13, color: AppColors.muted),

@@ -65,12 +65,17 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
       }
     }
 
-    // 조회수 증가
-    await _db.collection('users').doc(_profileUserId).update({'views': FieldValue.increment(1)});
+    // 조회수 증가 (본인 프로필 열람은 제외)
+    final isOwner = _currentUser != null && _currentUser!.uid == _profileUserId;
+    int views = data['views'] ?? 0;
+    if (!isOwner) {
+      await _db.collection('users').doc(_profileUserId).update({'views': FieldValue.increment(1)});
+      views += 1;
+    }
 
     setState(() {
       _profile = data;
-      _views = (data['views'] ?? 0) + 1;
+      _views = views;
       _likes = data['likes'] ?? 0;
       _loading = false;
     });
@@ -112,22 +117,52 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
     }
   }
 
+  void _confirmDeleteComment(String commentId) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('댓글 삭제'),
+        content: const Text('이 댓글을 삭제할까요?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('취소')),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _db.collection('users').doc(_profileUserId).collection('comments').doc(commentId).delete();
+            },
+            child: Text('삭제', style: TextStyle(color: AppColors.pastelPink)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _handleComment() async {
     if (_currentUser == null || _profileUserId.isEmpty || _commentController.text.trim().isEmpty) return;
     setState(() => _submitting = true);
-    final authorSnap = await _db.collection('users').doc(_currentUser!.uid).get();
-    final authorData = authorSnap.data() ?? {};
-    await _db.collection('users').doc(_profileUserId).collection('comments').add({
-      'text': _commentController.text.trim(),
-      'authorName': authorData['displayName'] ?? _currentUser!.displayName ?? '익명',
-      'authorUsername': authorData['username'] ?? '',
-      'authorTag': authorData['tag'] ?? 0,
-      'authorPhoto': authorData['photoURL'] ?? _currentUser!.photoURL ?? '',
-      'authorUid': _currentUser!.uid,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
-    _commentController.clear();
-    setState(() => _submitting = false);
+    try {
+      final authorSnap = await _db.collection('users').doc(_currentUser!.uid).get();
+      final authorData = authorSnap.data() ?? {};
+      await _db.collection('users').doc(_profileUserId).collection('comments').add({
+        'text': _commentController.text.trim(),
+        'authorName': authorData['displayName'] ?? _currentUser!.displayName ?? '익명',
+        'authorUsername': authorData['username'] ?? '',
+        'authorTag': authorData['tag'] ?? 0,
+        'authorPhoto': authorData['photoURL'] ?? _currentUser!.photoURL ?? '',
+        'authorUid': _currentUser!.uid,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      _commentController.clear();
+    } catch (e) {
+      debugPrint('댓글 등록 실패: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('댓글 등록에 실패했어요. 다시 시도해주세요.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
   }
 
   List<CategoryInfo> get _activeCategories {
@@ -440,7 +475,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                                       ),
                                       if (_currentUser != null && (data['authorUid'] == _currentUser!.uid || _currentUser!.uid == _profileUserId))
                                         GestureDetector(
-                                          onTap: () => _db.collection('users').doc(_profileUserId).collection('comments').doc(d.id).delete(),
+                                          onTap: () => _confirmDeleteComment(d.id),
                                           child: Padding(
                                             padding: const EdgeInsets.only(left: 8),
                                             child: Text('삭제', style: TextStyle(fontSize: 10, color: AppColors.muted)),
@@ -460,6 +495,8 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                               Expanded(
                                 child: TextField(
                                   controller: _commentController,
+                                  maxLength: 300,
+                                  buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
                                   decoration: InputDecoration(
                                     hintText: '댓글 작성...',
                                     hintStyle: TextStyle(fontSize: 13, color: AppColors.muted),
@@ -513,7 +550,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
 
   Widget _statChip(String label, {bool highlight = false}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: highlight ? AppColors.pastelPink : AppColors.foreground.withValues(alpha: 0.15)),

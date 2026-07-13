@@ -102,7 +102,7 @@ class _CommentsModalState extends State<CommentsModal> {
                           ),
                           const SizedBox(width: 8),
                           GestureDetector(
-                            onTap: () => _db.collection('users').doc(widget.user!.uid).collection('comments').doc(docs[i].id).delete(),
+                            onTap: () => _confirmDelete(docs[i].id),
                             child: Text('삭제', style: TextStyle(fontSize: 10, color: AppColors.muted)),
                           ),
                         ],
@@ -123,6 +123,8 @@ class _CommentsModalState extends State<CommentsModal> {
                 Expanded(
                   child: TextField(
                     controller: _controller,
+                    maxLength: 300,
+                    buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
                     decoration: InputDecoration(
                       hintText: '댓글 작성...',
                       hintStyle: TextStyle(fontSize: 13, color: AppColors.muted),
@@ -148,6 +150,26 @@ class _CommentsModalState extends State<CommentsModal> {
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDelete(String commentId) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('댓글 삭제'),
+        content: const Text('이 댓글을 삭제할까요?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('취소')),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _db.collection('users').doc(widget.user!.uid).collection('comments').doc(commentId).delete();
+            },
+            child: Text('삭제', style: TextStyle(color: AppColors.pastelPink)),
           ),
         ],
       ),
