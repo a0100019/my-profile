@@ -5,7 +5,9 @@ import 'constants.dart';
 import 'screens/login_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/public_profile_screen.dart';
+import 'screens/locked_account_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -60,9 +62,35 @@ class AuthGate extends StatelessWidget {
           );
         }
         if (snapshot.hasData) {
-          return const DashboardScreen();
+          return _AuthedRouter(user: snapshot.data!);
         }
         return const LoginScreen();
+      },
+    );
+  }
+}
+
+class _AuthedRouter extends StatelessWidget {
+  final User user;
+  const _AuthedRouter({required this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(color: AppColors.pastelPurple),
+            ),
+          );
+        }
+        final data = snapshot.data?.data() as Map<String, dynamic>?;
+        if (data?['isLocked'] == true) {
+          return LockedAccountScreen(uid: user.uid);
+        }
+        return const DashboardScreen();
       },
     );
   }

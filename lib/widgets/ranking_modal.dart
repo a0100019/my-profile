@@ -24,7 +24,7 @@ class _RankingModalState extends State<RankingModal> {
 
   Future<void> _loadRanking() async {
     final snapshot = await FirebaseFirestore.instance.collection('users').get();
-    _allUsers = snapshot.docs.map((d) {
+    _allUsers = snapshot.docs.where((d) => d.data()['isPrivate'] != true).map((d) {
       final data = d.data();
       return {
         'username': data['username'] ?? '',

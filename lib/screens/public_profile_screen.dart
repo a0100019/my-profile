@@ -17,6 +17,8 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
   String _profileUserId = '';
   bool _loading = true;
   bool _notFound = false;
+  bool _blocked = false;
+  bool _reported = false;
   int _views = 0;
   int _likes = 0;
   bool _liked = false;
@@ -47,6 +49,16 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
     final doc = snapshot.docs[0];
     final data = doc.data();
     _profileUserId = doc.id;
+
+    if (_currentUser != null) {
+      final blockedUsers = List<String>.from(data['blockedUsers'] ?? []);
+      if (blockedUsers.contains(_currentUser!.uid)) {
+        setState(() { _blocked = true; _loading = false; });
+        return;
+      }
+      final reportSnap = await _db.collection('reports').doc('${_currentUser!.uid}_$_profileUserId').get();
+      _reported = reportSnap.exists;
+    }
 
     if (_currentUser != null) {
       final likedBy = List<String>.from(data['likedBy'] ?? []);
@@ -114,6 +126,105 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
       await myRef.update({'sentRequests': FieldValue.arrayUnion([_profileUserId])});
       await targetRef.update({'friendRequests': FieldValue.arrayUnion([_currentUser!.uid])});
       setState(() => _friendStatus = 'pending');
+    }
+  }
+
+  void _showReportDialog() {
+    final reasonController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('신고하기'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('신고 사유를 입력해주세요.', style: TextStyle(fontSize: 13)),
+            const SizedBox(height: 8),
+            TextField(
+              controller: reasonController,
+              maxLength: 200,
+              maxLines: 3,
+              decoration: InputDecoration(
+                hintText: '예: 욕설, 도배, 사칭 등',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('취소')),
+          TextButton(
+            onPressed: () {
+              final reason = reasonController.text.trim();
+              if (reason.isEmpty) return;
+              Navigator.pop(ctx);
+              _reportUser(reason);
+            },
+            child: Text('신고', style: TextStyle(color: AppColors.pastelPink)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _reportUser(String reason) async {
+    if (_currentUser == null || _profileUserId.isEmpty) return;
+    final reporterUid = _currentUser!.uid;
+    final reportedUid = _profileUserId;
+    final reportRef = _db.collection('reports').doc('${reporterUid}_$reportedUid');
+
+    try {
+      final existing = await reportRef.get();
+      if (existing.exists) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('이미 신고한 사용자예요.')),
+        );
+        return;
+      }
+
+      await reportRef.set({
+        'reporterUid': reporterUid,
+        'reportedUid': reportedUid,
+        'reason': reason,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      // 신고자의 댓글함에서 신고 대상이 남긴 댓글 삭제, 신고 대상을 차단 목록에 추가
+      final myComments = await _db
+          .collection('users').doc(reporterUid).collection('comments')
+          .where('authorUid', isEqualTo: reportedUid).get();
+      for (final c in myComments.docs) {
+        await c.reference.delete();
+      }
+      await _db.collection('users').doc(reporterUid).update({
+        'blockedUsers': FieldValue.arrayUnion([reportedUid]),
+      });
+
+      // 신고 대상의 피신고 목록 갱신 및 경고/잠금 기준 확인
+      await _db.collection('users').doc(reportedUid).update({
+        'reportedBy': FieldValue.arrayUnion([reporterUid]),
+      });
+      final reportedSnap = await _db.collection('users').doc(reportedUid).get();
+      final reportedByCount = ((reportedSnap.data()?['reportedBy'] as List?) ?? []).length;
+      if (reportedByCount >= 5) {
+        await _db.collection('users').doc(reportedUid).update({'isLocked': true});
+      } else if (reportedByCount == 3) {
+        await _db.collection('users').doc(reportedUid).update({'warningPending': true});
+      }
+
+      if (!mounted) return;
+      setState(() => _reported = true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('신고가 접수됐어요.')),
+      );
+    } catch (e) {
+      debugPrint('신고 처리 실패: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('신고 처리에 실패했어요. 다시 시도해주세요.')),
+      );
     }
   }
 
@@ -206,6 +317,20 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
         ),
       );
     }
+    if (_blocked) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('🚫', style: TextStyle(fontSize: 60)),
+              const SizedBox(height: 16),
+              const Text('접근할 수 없는 프로필이에요', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+            ],
+          ),
+        ),
+      );
+    }
 
     final p = _profile!;
     final photoURL = p['photoURL'] as String? ?? '';
@@ -284,6 +409,11 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                                           child: _statChip(
                                             _friendStatus == 'pending' ? '요청됨' : '친구 추가',
                                           ),
+                                        ),
+                                      if (_currentUser != null && _currentUser!.uid != _profileUserId)
+                                        GestureDetector(
+                                          onTap: _reported ? null : _showReportDialog,
+                                          child: _statChip(_reported ? '신고됨' : '🚨 신고'),
                                         ),
                                     ],
                                   ),

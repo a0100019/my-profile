@@ -96,10 +96,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
       final commentsSnap = await _db.collection('users').doc(user.uid).collection('comments').get();
       setState(() => _commentCount = commentsSnap.size);
+
+      if (profile['warningPending'] == true) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _showWarningDialog());
+      }
     } catch (e) {
       debugPrint('프로필 로드 실패: $e');
     }
     setState(() => _loading = false);
+  }
+
+  void _showWarningDialog() {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('⚠️ 경고'),
+        content: const Text('다수의 사용자로부터 신고가 접수됐어요. 신고가 5회 누적되면 계정이 잠길 수 있어요.'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _saveProfile({'warningPending': false});
+            },
+            child: const Text('확인'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _saveProfile(Map<String, dynamic> updates) async {
@@ -489,6 +514,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _showBamboo();
         },
         onDeleteAccount: _deleteAccount,
+        isPrivate: profile['isPrivate'] == true,
+        onChangePrivacy: (v) => _saveProfile({'isPrivate': v}),
+        onShowReportedList: () {
+          Navigator.pop(context);
+          _showUserList(
+            title: '내가 신고한 사용자',
+            uids: List<String>.from(profile['blockedUsers'] ?? []),
+          );
+        },
       ),
     );
   }

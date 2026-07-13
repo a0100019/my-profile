@@ -1,17 +1,30 @@
 import 'package:flutter/material.dart';
 import '../constants.dart';
 
-class SettingsModal extends StatelessWidget {
+class SettingsModal extends StatefulWidget {
   final VoidCallback onLogout;
   final VoidCallback onOpenBamboo;
   final VoidCallback onDeleteAccount;
+  final bool isPrivate;
+  final Function(bool) onChangePrivacy;
+  final VoidCallback onShowReportedList;
 
   const SettingsModal({
     super.key,
     required this.onLogout,
     required this.onOpenBamboo,
     required this.onDeleteAccount,
+    required this.isPrivate,
+    required this.onChangePrivacy,
+    required this.onShowReportedList,
   });
+
+  @override
+  State<SettingsModal> createState() => _SettingsModalState();
+}
+
+class _SettingsModalState extends State<SettingsModal> {
+  late bool _isPrivate = widget.isPrivate;
 
   @override
   Widget build(BuildContext context) {
@@ -33,7 +46,9 @@ class SettingsModal extends StatelessWidget {
               ],
             ),
           ),
-          _settingItem('🎋 대나무숲', onOpenBamboo),
+          _privacyItem(),
+          _settingItem('🚨 내가 신고한 사용자', widget.onShowReportedList),
+          _settingItem('🎋 대나무숲', widget.onOpenBamboo),
           _settingItem('📋 이용약관', () {
             Navigator.pop(context);
             _showTerms(context);
@@ -41,6 +56,38 @@ class SettingsModal extends StatelessWidget {
           _settingItem('🚪 로그아웃', () => _confirmLogout(context), isDestructive: true),
           _settingItem('❌ 회원 탈퇴', () => _confirmDeleteAccount(context), isDestructive: true),
           const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+
+  Widget _privacyItem() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('🔒 프로필 비공개', style: TextStyle(fontSize: 14)),
+                const SizedBox(height: 2),
+                Text(
+                  '비공개하면 검색 및 랜덤 프로필 보기에서 제외돼요',
+                  style: TextStyle(fontSize: 11, color: AppColors.muted),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: _isPrivate,
+            activeTrackColor: AppColors.pastelPurple,
+            onChanged: (v) {
+              setState(() => _isPrivate = v);
+              widget.onChangePrivacy(v);
+            },
+          ),
         ],
       ),
     );
@@ -69,7 +116,7 @@ class SettingsModal extends StatelessWidget {
             onPressed: () {
               Navigator.pop(ctx);
               Navigator.pop(context);
-              onLogout();
+              widget.onLogout();
             },
             child: Text('로그아웃', style: TextStyle(color: AppColors.pastelPink)),
           ),
@@ -90,7 +137,7 @@ class SettingsModal extends StatelessWidget {
             onPressed: () {
               Navigator.pop(ctx);
               Navigator.pop(context);
-              onDeleteAccount();
+              widget.onDeleteAccount();
             },
             child: Text('탈퇴', style: TextStyle(color: AppColors.pastelPink)),
           ),

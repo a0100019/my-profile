@@ -89,7 +89,7 @@ class _FriendsModalState extends State<FriendsModal> with SingleTickerProviderSt
         .limit(20)
         .get();
     final results = snapshot.docs
-        .where((d) => d.id != widget.user?.uid)
+        .where((d) => d.id != widget.user?.uid && d.data()['isPrivate'] != true)
         .map((d) {
           final data = d.data();
           return {'uid': d.id, 'username': data['username'], 'displayName': data['displayName'], 'tag': data['tag'], 'photoURL': data['photoURL'] ?? '', 'bio': data['bio'] ?? ''};
@@ -135,7 +135,7 @@ class _FriendsModalState extends State<FriendsModal> with SingleTickerProviderSt
     if (_allRandomProfiles.isNotEmpty) return;
     final snapshot = await _db.collection('users').orderBy('lastActiveAt', descending: true).limit(100).get();
     final profiles = snapshot.docs
-        .where((d) => d.id != widget.user?.uid)
+        .where((d) => d.id != widget.user?.uid && d.data()['isPrivate'] != true)
         .map((d) {
           final data = d.data();
           return {'uid': d.id, 'username': data['username'], 'displayName': data['displayName'], 'tag': data['tag'], 'photoURL': data['photoURL'] ?? '', 'bio': data['bio'] ?? ''};
