@@ -145,7 +145,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   List<CategoryInfo> get _addedCategories {
     final addedDefault = allCategories.where((cat) => profile[cat.key] != null).toList();
-    final customKeys = profile.keys.where((k) => k.startsWith('custom_') && profile[k] is Map && (profile[k]['items'] as List?)?.isNotEmpty == true).toList();
+    final customKeys = profile.keys.where((k) => k.startsWith('custom_') && profile[k] is Map).toList();
     final customCats = customKeys.map((k) => CategoryInfo(k, '✨', k.replaceFirst('custom_', ''))).toList();
     final unsorted = [...addedDefault, ...customCats];
 
@@ -225,6 +225,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           colorIndex: colorIndex,
                           onSave: (newItems) => _saveCategory(cat.key, newItems),
                           onRemove: () => _removeCategory(cat.key),
+                          onPickImage: _pickCategoryItemImage,
                           dragHandle: ReorderableDragStartListener(
                             index: i,
                             child: Icon(Icons.drag_handle, size: 20, color: AppColors.muted),
@@ -235,24 +236,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
 
                   const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _actionButton(
-                          _copied ? '복사됨!' : '프로필 공유',
-                          _copied ? Icons.check : Icons.share,
-                          _handleShare,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _actionButton(
-                          '사진 변경',
-                          Icons.camera_alt,
-                          _changePhoto,
-                        ),
-                      ),
-                    ],
+                  _actionButton(
+                    _copied ? '복사됨!' : '프로필 공유',
+                    _copied ? Icons.check : Icons.share,
+                    _handleShare,
                   ),
                   const SizedBox(height: 16),
                   _buildAddCategory(),
@@ -322,6 +309,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
+        width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
           color: AppColors.card,
@@ -470,12 +458,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
-  Future<void> _changePhoto() async {
-    if (_user == null) return;
+  Future<String?> _changePhoto() async {
+    if (_user == null) return null;
     try {
       final picker = ImagePicker();
       final picked = await picker.pickImage(source: ImageSource.gallery, maxWidth: 512, maxHeight: 512, imageQuality: 80);
-      if (picked == null) return;
+      if (picked == null) return null;
       final bytes = await picked.readAsBytes();
       final ref = FirebaseStorage.instance.ref('profilePhotos/${_user!.uid}.jpg');
       await ref.putData(Uint8List.fromList(bytes), SettableMetadata(contentType: 'image/jpeg'));
@@ -483,12 +471,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
       await _saveProfile({'photoURL': url});
       await _user!.updatePhotoURL(url);
       setState(() {});
+      return url;
     } catch (e) {
       debugPrint('사진 변경 실패: $e');
-      if (!mounted) return;
+      if (!mounted) return null;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('사진 변경에 실패했어요. 다시 시도해주세요.')),
       );
+    }
+    return null;
+  }
+
+  Future<String?> _pickCategoryItemImage() async {
+    if (_user == null) return null;
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(source: ImageSource.gallery, maxWidth: 800, maxHeight: 800, imageQuality: 80);
+      if (picked == null) return null;
+      final bytes = await picked.readAsBytes();
+      final id = DateTime.now().millisecondsSinceEpoch;
+      final ref = FirebaseStorage.instance.ref('categoryItemImages/${_user!.uid}/$id.jpg');
+      await ref.putData(Uint8List.fromList(bytes), SettableMetadata(contentType: 'image/jpeg'));
+      return await ref.getDownloadURL();
+    } catch (e) {
+      debugPrint('항목 사진 업로드 실패: $e');
+      if (!mounted) return null;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('사진 업로드에 실패했어요. 다시 시도해주세요.')),
+      );
+      return null;
     }
   }
 
@@ -604,6 +615,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         profile: profile,
         bio: _bio,
         infoFields: _infoFields,
+        onChangePhoto: _changePhoto,
         onSave: (updates) async {
           await _saveProfile(updates);
           if (updates.containsKey('bio')) setState(() => _bio = updates['bio']);

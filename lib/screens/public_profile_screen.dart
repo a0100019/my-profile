@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../constants.dart';
 
 class PublicProfileScreen extends StatefulWidget {
@@ -226,6 +227,16 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
         const SnackBar(content: Text('신고 처리에 실패했어요. 다시 시도해주세요.')),
       );
     }
+  }
+
+  Future<void> _openLink(String link) async {
+    var url = link.trim();
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = 'https://$url';
+    }
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   void _confirmDeleteComment(String commentId) {
@@ -527,18 +538,59 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                               ),
                             ),
                             if (expanded)
-                              ...items.map((item) => Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                                child: Container(
-                                  width: double.infinity,
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.card.withValues(alpha: 0.6),
-                                    borderRadius: BorderRadius.circular(12),
+                              ...items.asMap().entries.map((e) {
+                                final idx = e.key;
+                                final item = e.value;
+                                final link = (item['link'] as String?) ?? '';
+                                final image = (item['image'] as String?) ?? '';
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                                  child: Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.card.withValues(alpha: 0.6),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Row(
+                                      crossAxisAlignment: CrossAxisAlignment.center,
+                                      children: [
+                                        SizedBox(
+                                          width: 16,
+                                          child: Text('${idx + 1}', style: TextStyle(fontSize: 11, color: AppColors.muted, fontWeight: FontWeight.w600)),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        if (image.isNotEmpty) ...[
+                                          ClipRRect(
+                                            borderRadius: BorderRadius.circular(6),
+                                            child: Image.network(image, width: 28, height: 28, fit: BoxFit.cover),
+                                          ),
+                                          const SizedBox(width: 8),
+                                        ],
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Text(item['text'] ?? '', style: const TextStyle(fontSize: 13)),
+                                              if (link.isNotEmpty)
+                                                GestureDetector(
+                                                  onTap: () => _openLink(link),
+                                                  child: Text(
+                                                    link,
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: TextStyle(fontSize: 11, color: AppColors.pastelPurple, decoration: TextDecoration.underline),
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                  child: Text(item['text'] ?? '', style: const TextStyle(fontSize: 13)),
-                                ),
-                              )),
+                                );
+                              }),
                             if (expanded) const SizedBox(height: 8),
                           ],
                         ),

@@ -9,6 +9,7 @@ class EditProfileModal extends StatefulWidget {
   final String bio;
   final List<Map<String, String>> infoFields;
   final Function(Map<String, dynamic>) onSave;
+  final Future<String?> Function() onChangePhoto;
 
   const EditProfileModal({
     super.key,
@@ -17,6 +18,7 @@ class EditProfileModal extends StatefulWidget {
     required this.bio,
     required this.infoFields,
     required this.onSave,
+    required this.onChangePhoto,
   });
 
   @override
@@ -31,6 +33,8 @@ class _EditProfileModalState extends State<EditProfileModal> {
   final _newLabelController = TextEditingController();
   final _newValueController = TextEditingController();
   bool _saving = false;
+  bool _changingPhoto = false;
+  late String _photoURL;
 
   @override
   void initState() {
@@ -39,6 +43,17 @@ class _EditProfileModalState extends State<EditProfileModal> {
     _nameController = TextEditingController(text: widget.profile['displayName'] ?? '');
     _usernameController = TextEditingController(text: widget.profile['username'] ?? '');
     _fields = List.from(widget.infoFields.map((f) => Map<String, String>.from(f)));
+    _photoURL = (widget.profile['photoURL'] as String?) ?? widget.user?.photoURL ?? '';
+  }
+
+  Future<void> _handleChangePhoto() async {
+    setState(() => _changingPhoto = true);
+    final url = await widget.onChangePhoto();
+    if (!mounted) return;
+    setState(() {
+      _changingPhoto = false;
+      if (url != null) _photoURL = url;
+    });
   }
 
   @override
@@ -78,6 +93,8 @@ class _EditProfileModalState extends State<EditProfileModal> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Center(child: _buildAvatarPicker()),
+                  const SizedBox(height: 20),
                   _label('이름'),
                   _input(_nameController, maxLength: 10),
                   const SizedBox(height: 12),
@@ -188,6 +205,60 @@ class _EditProfileModalState extends State<EditProfileModal> {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAvatarPicker() {
+    return GestureDetector(
+      onTap: _changingPhoto ? null : _handleChangePhoto,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          _photoURL.isNotEmpty
+              ? CircleAvatar(
+                  radius: 40,
+                  backgroundImage: NetworkImage(_photoURL),
+                  backgroundColor: AppColors.pastelPurple.withValues(alpha: 0.3),
+                )
+              : Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft, end: Alignment.bottomRight,
+                      colors: [AppColors.pastelPink, AppColors.pastelPurple],
+                    ),
+                  ),
+                ),
+          if (_changingPhoto)
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black.withValues(alpha: 0.4)),
+              child: const Center(
+                child: SizedBox(
+                  width: 22, height: 22,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                ),
+              ),
+            )
+          else
+            Positioned(
+              bottom: 0,
+              right: 0,
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.pastelPurple,
+                  border: Border.all(color: AppColors.card, width: 2),
+                ),
+                child: const Icon(Icons.camera_alt, size: 14, color: Colors.white),
+              ),
+            ),
         ],
       ),
     );

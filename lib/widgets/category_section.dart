@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../constants.dart';
 
 class CategorySection extends StatefulWidget {
@@ -8,6 +9,7 @@ class CategorySection extends StatefulWidget {
   final Function(List<Map<String, dynamic>>) onSave;
   final VoidCallback onRemove;
   final Widget? dragHandle;
+  final Future<String?> Function() onPickImage;
 
   const CategorySection({
     super.key,
@@ -16,6 +18,7 @@ class CategorySection extends StatefulWidget {
     required this.colorIndex,
     required this.onSave,
     required this.onRemove,
+    required this.onPickImage,
     this.dragHandle,
   });
 
@@ -26,10 +29,15 @@ class CategorySection extends StatefulWidget {
 class _CategorySectionState extends State<CategorySection> {
   bool _expanded = false;
   final _inputController = TextEditingController();
+  final _linkController = TextEditingController();
+  bool _showLinkInput = false;
+  String? _pendingImageUrl;
+  bool _uploadingImage = false;
 
   @override
   void dispose() {
     _inputController.dispose();
+    _linkController.dispose();
     super.dispose();
   }
 
@@ -90,6 +98,8 @@ class _CategorySectionState extends State<CategorySection> {
                 children: widget.items.asMap().entries.map((entry) {
                   final i = entry.key;
                   final item = entry.value;
+                  final link = (item['link'] as String?) ?? '';
+                  final image = (item['image'] as String?) ?? '';
                   return Padding(
                     key: ValueKey('categoryItem_$i'),
                     padding: const EdgeInsets.symmetric(vertical: 4),
@@ -100,13 +110,44 @@ class _CategorySectionState extends State<CategorySection> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
+                          SizedBox(
+                            width: 16,
+                            child: Text('${i + 1}', style: TextStyle(fontSize: 11, color: AppColors.muted, fontWeight: FontWeight.w600)),
+                          ),
+                          const SizedBox(width: 6),
                           ReorderableDragStartListener(
                             index: i,
                             child: Icon(Icons.drag_handle, size: 16, color: AppColors.muted),
                           ),
                           const SizedBox(width: 8),
-                          Expanded(child: Text(item['text'] ?? '', style: const TextStyle(fontSize: 13))),
+                          if (image.isNotEmpty) ...[
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(6),
+                              child: Image.network(image, width: 28, height: 28, fit: BoxFit.cover),
+                            ),
+                            const SizedBox(width: 8),
+                          ],
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(item['text'] ?? '', style: const TextStyle(fontSize: 13)),
+                                if (link.isNotEmpty)
+                                  GestureDetector(
+                                    onTap: () => _openLink(link),
+                                    child: Text(
+                                      link,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(fontSize: 11, color: AppColors.pastelPurple, decoration: TextDecoration.underline),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
                           const SizedBox(width: 8),
                           GestureDetector(
                             onTap: () => _removeItem(i),
@@ -124,36 +165,92 @@ class _CategorySectionState extends State<CategorySection> {
             // 항목 추가 (항상 표시)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _inputController,
-                      maxLength: 50,
-                      buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
-                      decoration: InputDecoration(
-                        hintText: '새 항목 추가',
-                        hintStyle: TextStyle(fontSize: 13, color: AppColors.muted),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.pastelPurple.withValues(alpha: 0.3))),
-                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.pastelPurple.withValues(alpha: 0.3))),
-                        isDense: true,
+                  if (_pendingImageUrl != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.network(_pendingImageUrl!, width: 36, height: 36, fit: BoxFit.cover),
+                          ),
+                          const SizedBox(width: 8),
+                          Text('사진 첨부됨', style: TextStyle(fontSize: 12, color: AppColors.muted)),
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: () => setState(() => _pendingImageUrl = null),
+                            child: Icon(Icons.close, size: 14, color: AppColors.pastelPink),
+                          ),
+                        ],
                       ),
-                      style: const TextStyle(fontSize: 13),
-                      onSubmitted: (_) => _addItem(),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  GestureDetector(
-                    onTap: _addItem,
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppColors.pastelPurple,
-                        borderRadius: BorderRadius.circular(8),
+                  if (_showLinkInput)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: TextField(
+                        controller: _linkController,
+                        decoration: InputDecoration(
+                          hintText: '링크(URL) 입력',
+                          hintStyle: TextStyle(fontSize: 12, color: AppColors.muted),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.pastelPurple.withValues(alpha: 0.3))),
+                          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.pastelPurple.withValues(alpha: 0.3))),
+                          isDense: true,
+                        ),
+                        style: const TextStyle(fontSize: 12),
+                        keyboardType: TextInputType.url,
                       ),
-                      child: const Icon(Icons.add, size: 16, color: Colors.white),
                     ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _inputController,
+                          maxLength: 50,
+                          buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                          decoration: InputDecoration(
+                            hintText: '새 항목 추가',
+                            hintStyle: TextStyle(fontSize: 13, color: AppColors.muted),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.pastelPurple.withValues(alpha: 0.3))),
+                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.pastelPurple.withValues(alpha: 0.3))),
+                            isDense: true,
+                          ),
+                          style: const TextStyle(fontSize: 13),
+                          onSubmitted: (_) => _addItem(),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: () => setState(() => _showLinkInput = !_showLinkInput),
+                        child: Icon(Icons.link, size: 20, color: _showLinkInput ? AppColors.pastelPurple : AppColors.muted),
+                      ),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: _uploadingImage ? null : _pickImage,
+                        child: _uploadingImage
+                            ? SizedBox(
+                                width: 20, height: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.pastelPurple),
+                              )
+                            : Icon(Icons.image_outlined, size: 20, color: _pendingImageUrl != null ? AppColors.pastelPurple : AppColors.muted),
+                      ),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: _addItem,
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.pastelPurple,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.add, size: 16, color: Colors.white),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -191,13 +288,42 @@ class _CategorySectionState extends State<CategorySection> {
     widget.onSave(items);
   }
 
+  Future<void> _pickImage() async {
+    setState(() => _uploadingImage = true);
+    final url = await widget.onPickImage();
+    if (!mounted) return;
+    setState(() {
+      _uploadingImage = false;
+      if (url != null) _pendingImageUrl = url;
+    });
+  }
+
+  Future<void> _openLink(String link) async {
+    var url = link.trim();
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = 'https://$url';
+    }
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
   void _addItem() {
     final text = _inputController.text.trim();
     if (text.isEmpty) return;
     final items = List<Map<String, dynamic>>.from(widget.items.map((e) => Map<String, dynamic>.from(e)));
-    items.add({'text': text, 'link': '', 'image': ''});
+    items.add({
+      'text': text,
+      'link': _linkController.text.trim(),
+      'image': _pendingImageUrl ?? '',
+    });
     widget.onSave(items);
     _inputController.clear();
+    _linkController.clear();
+    setState(() {
+      _pendingImageUrl = null;
+      _showLinkInput = false;
+    });
   }
 
   void _confirmRemove(BuildContext context) {
