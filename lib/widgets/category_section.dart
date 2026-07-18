@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../constants.dart';
 
@@ -36,9 +37,14 @@ class _CategorySectionState extends State<CategorySection> {
 
   @override
   void dispose() {
+    if (_pendingImageUrl != null) _deleteUploadedImage(_pendingImageUrl!);
     _inputController.dispose();
     _linkController.dispose();
     super.dispose();
+  }
+
+  void _deleteUploadedImage(String url) {
+    FirebaseStorage.instance.refFromURL(url).delete().catchError((_) {});
   }
 
   @override
@@ -181,7 +187,11 @@ class _CategorySectionState extends State<CategorySection> {
                           Text('사진 첨부됨', style: TextStyle(fontSize: 12, color: AppColors.muted)),
                           const SizedBox(width: 8),
                           GestureDetector(
-                            onTap: () => setState(() => _pendingImageUrl = null),
+                            onTap: () {
+                              final url = _pendingImageUrl!;
+                              setState(() => _pendingImageUrl = null);
+                              _deleteUploadedImage(url);
+                            },
                             child: Icon(Icons.close, size: 14, color: AppColors.pastelPink),
                           ),
                         ],
@@ -292,10 +302,12 @@ class _CategorySectionState extends State<CategorySection> {
     setState(() => _uploadingImage = true);
     final url = await widget.onPickImage();
     if (!mounted) return;
+    final previous = _pendingImageUrl;
     setState(() {
       _uploadingImage = false;
       if (url != null) _pendingImageUrl = url;
     });
+    if (url != null && previous != null) _deleteUploadedImage(previous);
   }
 
   Future<void> _openLink(String link) async {

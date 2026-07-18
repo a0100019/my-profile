@@ -458,25 +458,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
-  Future<String?> _changePhoto() async {
+  // 사진을 고르고 업로드만 하고, 실제 프로필 반영은 EditProfileModal의 "저장" 시점에 이뤄짐
+  Future<String?> _pickAndUploadPhoto() async {
     if (_user == null) return null;
     try {
       final picker = ImagePicker();
       final picked = await picker.pickImage(source: ImageSource.gallery, maxWidth: 512, maxHeight: 512, imageQuality: 80);
       if (picked == null) return null;
       final bytes = await picked.readAsBytes();
-      final ref = FirebaseStorage.instance.ref('profilePhotos/${_user!.uid}.jpg');
+      final id = DateTime.now().millisecondsSinceEpoch;
+      final ref = FirebaseStorage.instance.ref('profilePhotos/${_user!.uid}/$id.jpg');
       await ref.putData(Uint8List.fromList(bytes), SettableMetadata(contentType: 'image/jpeg'));
-      final url = await ref.getDownloadURL();
-      await _saveProfile({'photoURL': url});
-      await _user!.updatePhotoURL(url);
-      setState(() {});
-      return url;
+      return await ref.getDownloadURL();
     } catch (e) {
-      debugPrint('사진 변경 실패: $e');
+      debugPrint('사진 업로드 실패: $e');
       if (!mounted) return null;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('사진 변경에 실패했어요. 다시 시도해주세요.')),
+        const SnackBar(content: Text('사진 업로드에 실패했어요. 다시 시도해주세요.')),
       );
     }
     return null;
@@ -542,11 +540,63 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final user = _user;
     if (user == null) return;
     try {
-      final commentsSnap = await _db.collection('users').doc(user.uid).collection('comments').get();
+      final uid = user.uid;
+
+      // 친구/친구요청 목록에서 나를 제거
+      for (final otherUid in List<String>.from(profile['friends'] ?? [])) {
+        await _db.collection('users').doc(otherUid).update({'friends': FieldValue.arrayRemove([uid])});
+      }
+      for (final otherUid in List<String>.from(profile['friendRequests'] ?? [])) {
+        await _db.collection('users').doc(otherUid).update({'sentRequests': FieldValue.arrayRemove([uid])});
+      }
+      for (final otherUid in List<String>.from(profile['sentRequests'] ?? [])) {
+        await _db.collection('users').doc(otherUid).update({'friendRequests': FieldValue.arrayRemove([uid])});
+      }
+
+      // 좋아요 관계 정리
+      for (final otherUid in List<String>.from(profile['likedBy'] ?? [])) {
+        await _db.collection('users').doc(otherUid).update({'likedProfiles': FieldValue.arrayRemove([uid])});
+      }
+      for (final otherUid in List<String>.from(profile['likedProfiles'] ?? [])) {
+        await _db.collection('users').doc(otherUid).update({
+          'likedBy': FieldValue.arrayRemove([uid]),
+          'likes': FieldValue.increment(-1),
+        });
+      }
+
+      // 다른 사람 프로필에 남긴 댓글 삭제
+      final myComments = await _db.collectionGroup('comments').where('authorUid', isEqualTo: uid).get();
+      for (final c in myComments.docs) {
+        await c.reference.delete();
+      }
+
+      // 전체 채팅에 남긴 메시지 삭제
+      final myChats = await _db.collection('globalChat').where('senderUid', isEqualTo: uid).get();
+      for (final c in myChats.docs) {
+        await c.reference.delete();
+      }
+
+      // 내 댓글함(내가 받은 댓글) 삭제
+      final commentsSnap = await _db.collection('users').doc(uid).collection('comments').get();
       for (final doc in commentsSnap.docs) {
         await doc.reference.delete();
       }
-      await _db.collection('users').doc(user.uid).delete();
+
+      // Storage 파일 삭제
+      try {
+        final photos = await FirebaseStorage.instance.ref('profilePhotos/$uid').listAll();
+        for (final item in photos.items) {
+          await item.delete();
+        }
+      } catch (_) {}
+      try {
+        final itemImages = await FirebaseStorage.instance.ref('categoryItemImages/$uid').listAll();
+        for (final item in itemImages.items) {
+          await item.delete();
+        }
+      } catch (_) {}
+
+      await _db.collection('users').doc(uid).delete();
       try {
         await user.delete();
       } on FirebaseAuthException catch (e) {
@@ -615,9 +665,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         profile: profile,
         bio: _bio,
         infoFields: _infoFields,
-        onChangePhoto: _changePhoto,
+        onChangePhoto: _pickAndUploadPhoto,
         onSave: (updates) async {
           await _saveProfile(updates);
+          if (updates.containsKey('photoURL')) await _user!.updatePhotoURL(updates['photoURL']);
           if (updates.containsKey('bio')) setState(() => _bio = updates['bio']);
           if (updates.containsKey('infoFields')) {
             setState(() => _infoFields = (updates['infoFields'] as List)

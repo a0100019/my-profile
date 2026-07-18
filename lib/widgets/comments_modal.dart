@@ -68,7 +68,7 @@ class _CommentsModalState extends State<CommentsModal> {
                   itemBuilder: (context, i) {
                     final d = docs[i].data() as Map<String, dynamic>;
                     final ts = d['createdAt'] as Timestamp?;
-                    final photoURL = d['senderPhoto'] as String? ?? '';
+                    final photoURL = d['authorPhoto'] as String? ?? '';
                     return Container(
                       margin: const EdgeInsets.only(bottom: 8),
                       child: Row(
@@ -87,9 +87,9 @@ class _CommentsModalState extends State<CommentsModal> {
                               children: [
                                 Row(
                                   children: [
-                                    Text(d['senderName'] ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                                    Text(d['authorName'] ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
                                     const SizedBox(width: 4),
-                                    Text('#${d['senderTag'] ?? ''}', style: TextStyle(fontSize: 10, color: AppColors.muted)),
+                                    Text('#${d['authorTag'] ?? ''}', style: TextStyle(fontSize: 10, color: AppColors.muted)),
                                     const Spacer(),
                                     if (ts != null)
                                       Text('${ts.toDate().month}월 ${ts.toDate().day}일', style: TextStyle(fontSize: 10, color: AppColors.muted)),
@@ -181,10 +181,10 @@ class _CommentsModalState extends State<CommentsModal> {
     setState(() => _sending = true);
     await _db.collection('users').doc(widget.user!.uid).collection('comments').add({
       'text': _controller.text.trim(),
-      'senderUid': widget.user!.uid,
-      'senderName': widget.username,
-      'senderTag': '${widget.userTag ?? ''}',
-      'senderPhoto': widget.user!.photoURL ?? '',
+      'authorUid': widget.user!.uid,
+      'authorName': widget.username,
+      'authorTag': widget.userTag ?? 0,
+      'authorPhoto': widget.user!.photoURL ?? '',
       'createdAt': FieldValue.serverTimestamp(),
     });
     _controller.clear();

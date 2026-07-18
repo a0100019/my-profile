@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../constants.dart';
+import 'locked_account_screen.dart';
 
 class PublicProfileScreen extends StatefulWidget {
   final String tag;
@@ -41,6 +42,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
         ? _db.collection('users').where('tag', isEqualTo: int.parse(widget.tag))
         : _db.collection('users').where('username', isEqualTo: widget.tag);
     final snapshot = await q.get();
+    if (!mounted) return;
 
     if (snapshot.docs.isEmpty) {
       setState(() { _notFound = true; _loading = false; });
@@ -52,6 +54,15 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
     _profileUserId = doc.id;
 
     if (_currentUser != null) {
+      final mySnap = await _db.collection('users').doc(_currentUser!.uid).get();
+      if (!mounted) return;
+      if (mySnap.data()?['isLocked'] == true) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => LockedAccountScreen(uid: _currentUser!.uid)),
+        );
+        return;
+      }
+
       final blockedUsers = List<String>.from(data['blockedUsers'] ?? []);
       if (blockedUsers.contains(_currentUser!.uid)) {
         setState(() { _blocked = true; _loading = false; });
@@ -59,13 +70,10 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
       }
       final reportSnap = await _db.collection('reports').doc('${_currentUser!.uid}_$_profileUserId').get();
       _reported = reportSnap.exists;
-    }
 
-    if (_currentUser != null) {
       final likedBy = List<String>.from(data['likedBy'] ?? []);
       _liked = likedBy.contains(_currentUser!.uid);
 
-      final mySnap = await _db.collection('users').doc(_currentUser!.uid).get();
       if (mySnap.exists) {
         final myData = mySnap.data()!;
         final friends = List<String>.from(myData['friends'] ?? []);
@@ -86,6 +94,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
       views += 1;
     }
 
+    if (!mounted) return;
     setState(() {
       _profile = data;
       _views = views;
@@ -102,10 +111,12 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
     if (_liked) {
       await targetRef.update({'likes': FieldValue.increment(-1), 'likedBy': FieldValue.arrayRemove([_currentUser!.uid])});
       await myRef.update({'likedProfiles': FieldValue.arrayRemove([_profileUserId])});
+      if (!mounted) return;
       setState(() { _likes--; _liked = false; });
     } else {
       await targetRef.update({'likes': FieldValue.increment(1), 'likedBy': FieldValue.arrayUnion([_currentUser!.uid])});
       await myRef.update({'likedProfiles': FieldValue.arrayUnion([_profileUserId])});
+      if (!mounted) return;
       setState(() { _likes++; _liked = true; });
     }
   }
@@ -118,14 +129,17 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
     if (_friendStatus == 'friend') {
       await myRef.update({'friends': FieldValue.arrayRemove([_profileUserId])});
       await targetRef.update({'friends': FieldValue.arrayRemove([_currentUser!.uid])});
+      if (!mounted) return;
       setState(() => _friendStatus = 'none');
     } else if (_friendStatus == 'pending') {
       await myRef.update({'sentRequests': FieldValue.arrayRemove([_profileUserId])});
       await targetRef.update({'friendRequests': FieldValue.arrayRemove([_currentUser!.uid])});
+      if (!mounted) return;
       setState(() => _friendStatus = 'none');
     } else {
       await myRef.update({'sentRequests': FieldValue.arrayUnion([_profileUserId])});
       await targetRef.update({'friendRequests': FieldValue.arrayUnion([_currentUser!.uid])});
+      if (!mounted) return;
       setState(() => _friendStatus = 'pending');
     }
   }
@@ -211,7 +225,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
       final reportedByCount = ((reportedSnap.data()?['reportedBy'] as List?) ?? []).length;
       if (reportedByCount >= 5) {
         await _db.collection('users').doc(reportedUid).update({'isLocked': true});
-      } else if (reportedByCount == 3) {
+      } else if (reportedByCount >= 3) {
         await _db.collection('users').doc(reportedUid).update({'warningPending': true});
       }
 
@@ -412,7 +426,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                                       _statChip('조회수 $_views'),
                                       GestureDetector(
                                         onTap: _handleLike,
-                                        child: _statChip('${_liked ? "❤️" : "🤍"} $_likes', highlight: _liked),
+                                        child: _statChip('좋아요 $_likes', highlight: _liked),
                                       ),
                                       if (_currentUser != null && _currentUser!.uid != _profileUserId && _friendStatus != 'friend')
                                         GestureDetector(
@@ -722,9 +736,9 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
     final data = _profile?[key];
     if (data is Map && data['items'] is List) {
       return (data['items'] as List).map((item) {
-        if (item is String) return {'text': item};
+        if (item is String) return {'text': item, 'link': '', 'image': ''};
         if (item is Map) return Map<String, dynamic>.from(item);
-        return <String, dynamic>{'text': ''};
+        return <String, dynamic>{'text': '', 'link': '', 'image': ''};
       }).toList();
     }
     return [];

@@ -89,7 +89,7 @@ class _FriendsModalState extends State<FriendsModal> with SingleTickerProviderSt
         .limit(20)
         .get();
     final results = snapshot.docs
-        .where((d) => d.id != widget.user?.uid && d.data()['isPrivate'] != true)
+        .where((d) => d.id != widget.user?.uid && d.data()['isPrivate'] != true && d.data()['isLocked'] != true)
         .map((d) {
           final data = d.data();
           return {'uid': d.id, 'username': data['username'], 'displayName': data['displayName'], 'tag': data['tag'], 'photoURL': data['photoURL'] ?? '', 'bio': data['bio'] ?? ''};
@@ -135,7 +135,7 @@ class _FriendsModalState extends State<FriendsModal> with SingleTickerProviderSt
     if (_allRandomProfiles.isNotEmpty) return;
     final snapshot = await _db.collection('users').orderBy('lastActiveAt', descending: true).limit(100).get();
     final profiles = snapshot.docs
-        .where((d) => d.id != widget.user?.uid && d.data()['isPrivate'] != true)
+        .where((d) => d.id != widget.user?.uid && d.data()['isPrivate'] != true && d.data()['isLocked'] != true)
         .map((d) {
           final data = d.data();
           return {'uid': d.id, 'username': data['username'], 'displayName': data['displayName'], 'tag': data['tag'], 'photoURL': data['photoURL'] ?? '', 'bio': data['bio'] ?? ''};
@@ -155,6 +155,7 @@ class _FriendsModalState extends State<FriendsModal> with SingleTickerProviderSt
     await myRef.update({'friends': FieldValue.arrayUnion([targetUid]), 'friendRequests': FieldValue.arrayRemove([targetUid])});
     await targetRef.update({'friends': FieldValue.arrayUnion([widget.user!.uid]), 'sentRequests': FieldValue.arrayRemove([widget.user!.uid])});
     final accepted = _friendRequests.firstWhere((r) => r['uid'] == targetUid);
+    if (!mounted) return;
     setState(() {
       _friendRequests.removeWhere((r) => r['uid'] == targetUid);
       _friends.add(accepted);
@@ -169,6 +170,7 @@ class _FriendsModalState extends State<FriendsModal> with SingleTickerProviderSt
     if (widget.user == null) return;
     await _db.collection('users').doc(widget.user!.uid).update({'friendRequests': FieldValue.arrayRemove([targetUid])});
     await _db.collection('users').doc(targetUid).update({'sentRequests': FieldValue.arrayRemove([widget.user!.uid])});
+    if (!mounted) return;
     setState(() => _friendRequests.removeWhere((r) => r['uid'] == targetUid));
     widget.onProfileUpdate({
       'friendRequests': (widget.profile['friendRequests'] as List?)?.where((id) => id != targetUid).toList() ?? [],
@@ -199,6 +201,7 @@ class _FriendsModalState extends State<FriendsModal> with SingleTickerProviderSt
     if (widget.user == null) return;
     await _db.collection('users').doc(widget.user!.uid).update({'friends': FieldValue.arrayRemove([targetUid])});
     await _db.collection('users').doc(targetUid).update({'friends': FieldValue.arrayRemove([widget.user!.uid])});
+    if (!mounted) return;
     setState(() => _friends.removeWhere((f) => f['uid'] == targetUid));
     widget.onProfileUpdate({
       'friends': (widget.profile['friends'] as List?)?.where((id) => id != targetUid).toList() ?? [],
@@ -230,6 +233,7 @@ class _FriendsModalState extends State<FriendsModal> with SingleTickerProviderSt
       'chatUnread.${widget.user!.uid}': FieldValue.increment(1),
     });
     _chatController.clear();
+    if (!mounted) return;
     setState(() => _sendingChat = false);
   }
 
@@ -244,6 +248,7 @@ class _FriendsModalState extends State<FriendsModal> with SingleTickerProviderSt
       'createdAt': FieldValue.serverTimestamp(),
     });
     _globalChatController.clear();
+    if (!mounted) return;
     setState(() => _sendingGlobal = false);
   }
 

@@ -35,6 +35,7 @@ class _EditProfileModalState extends State<EditProfileModal> {
   bool _saving = false;
   bool _changingPhoto = false;
   late String _photoURL;
+  late final String _originalPhotoURL;
 
   @override
   void initState() {
@@ -44,6 +45,7 @@ class _EditProfileModalState extends State<EditProfileModal> {
     _usernameController = TextEditingController(text: widget.profile['username'] ?? '');
     _fields = List.from(widget.infoFields.map((f) => Map<String, String>.from(f)));
     _photoURL = (widget.profile['photoURL'] as String?) ?? widget.user?.photoURL ?? '';
+    _originalPhotoURL = _photoURL;
   }
 
   Future<void> _handleChangePhoto() async {
@@ -319,6 +321,7 @@ class _EditProfileModalState extends State<EditProfileModal> {
       'username': newUsername,
       'bio': _bioController.text.trim(),
       'infoFields': _fields.map((f) => {'label': f['label'], 'value': f['value']}).toList(),
+      if (_photoURL != _originalPhotoURL) 'photoURL': _photoURL,
     });
     if (!mounted) return;
     Navigator.pop(context);
