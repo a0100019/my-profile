@@ -174,29 +174,6 @@ class _CategorySectionState extends State<CategorySection> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (_pendingImageUrl != null)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Row(
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.network(_pendingImageUrl!, width: 36, height: 36, fit: BoxFit.cover),
-                          ),
-                          const SizedBox(width: 8),
-                          Text('사진 첨부됨', style: TextStyle(fontSize: 12, color: AppColors.muted)),
-                          const SizedBox(width: 8),
-                          GestureDetector(
-                            onTap: () {
-                              final url = _pendingImageUrl!;
-                              setState(() => _pendingImageUrl = null);
-                              _deleteUploadedImage(url);
-                            },
-                            child: Icon(Icons.close, size: 14, color: AppColors.pastelPink),
-                          ),
-                        ],
-                      ),
-                    ),
                   if (_showLinkInput)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
@@ -216,6 +193,33 @@ class _CategorySectionState extends State<CategorySection> {
                     ),
                   Row(
                     children: [
+                      if (_pendingImageUrl != null) ...[
+                        GestureDetector(
+                          onTap: () {
+                            final url = _pendingImageUrl!;
+                            setState(() => _pendingImageUrl = null);
+                            _deleteUploadedImage(url);
+                          },
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.network(_pendingImageUrl!, width: 36, height: 36, fit: BoxFit.cover),
+                              ),
+                              Positioned(
+                                top: -6, right: -6,
+                                child: Container(
+                                  padding: const EdgeInsets.all(2),
+                                  decoration: BoxDecoration(color: AppColors.card, shape: BoxShape.circle),
+                                  child: Icon(Icons.cancel, size: 16, color: AppColors.pastelPink),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
                       Expanded(
                         child: TextField(
                           controller: _inputController,

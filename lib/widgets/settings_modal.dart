@@ -156,7 +156,7 @@ class _SettingsModalState extends State<SettingsModal> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              _term('제1조 (목적)', '본 약관은 mybio.kr(이하 "서비스")의 이용 조건 및 절차, 이용자와 서비스 제공자의 권리·의무를 규정함을 목적으로 합니다.'),
+              _term('제1조 (목적)', '본 약관은 murimuri.io(이하 "서비스")의 이용 조건 및 절차, 이용자와 서비스 제공자의 권리·의무를 규정함을 목적으로 합니다.'),
               _term('제2조 (정의)', '① "서비스"란 사용자가 자신의 취향과 관심사를 프로필로 만들어 공유할 수 있는 애플리케이션을 말합니다.\n② "이용자"란 Google 계정으로 로그인하여 서비스를 이용하는 자를 말합니다.'),
               _term('제3조 (개인정보)', '서비스는 Google 로그인을 통해 이름, 이메일, 프로필 사진 URL을 수집합니다. 수집된 정보는 프로필 표시 및 서비스 운영 목적으로만 사용됩니다.'),
               _term('제4조 (이용자의 의무)', '① 타인의 권리를 침해하는 콘텐츠를 게시해서는 안 됩니다.\n② 서비스를 부정한 목적으로 사용해서는 안 됩니다.'),

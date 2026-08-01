@@ -267,11 +267,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         const Spacer(),
         RichText(
           text: TextSpan(
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             children: [
-              TextSpan(text: 'my', style: TextStyle(color: AppColors.pastelPurple)),
-              TextSpan(text: '.', style: TextStyle(color: AppColors.foreground)),
-              TextSpan(text: 'bio', style: TextStyle(color: AppColors.pastelBlue)),
+              TextSpan(text: 'murimuri', style: TextStyle(color: AppColors.pastelPurple)),
+              TextSpan(text: '.io', style: TextStyle(color: AppColors.pastelBlue)),
             ],
           ),
         ),
