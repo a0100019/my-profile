@@ -34,7 +34,15 @@ class MyBioApp extends StatefulWidget {
 }
 
 class _MyBioAppState extends State<MyBioApp> {
-  Locale _locale = const Locale('ko');
+  late Locale _locale = _detectInitialLocale();
+
+  Locale _detectInitialLocale() {
+    final deviceLocale = WidgetsBinding.instance.platformDispatcher.locale;
+    for (final supported in AppLocalizations.supportedLocales) {
+      if (supported.languageCode == deviceLocale.languageCode) return supported;
+    }
+    return const Locale('ko');
+  }
 
   void _setLocale(Locale locale) {
     if (_locale == locale) return;

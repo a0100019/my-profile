@@ -267,6 +267,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get settingsReportedList => '🚨 通報したユーザー';
 
   @override
+  String get settingsNationality => '🌐 国籍/言語';
+
+  @override
   String get settingsBamboo => '🎋 竹林(意見箱)';
 
   @override

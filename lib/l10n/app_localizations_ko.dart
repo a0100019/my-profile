@@ -267,6 +267,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get settingsReportedList => '🚨 내가 신고한 사용자';
 
   @override
+  String get settingsNationality => '🌐 국적/언어';
+
+  @override
   String get settingsBamboo => '🎋 대나무숲';
 
   @override

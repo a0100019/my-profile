@@ -9,6 +9,8 @@ class SettingsModal extends StatefulWidget {
   final bool isPrivate;
   final Function(bool) onChangePrivacy;
   final VoidCallback onShowReportedList;
+  final String nationality;
+  final Function(String) onChangeNationality;
 
   const SettingsModal({
     super.key,
@@ -18,6 +20,8 @@ class SettingsModal extends StatefulWidget {
     required this.isPrivate,
     required this.onChangePrivacy,
     required this.onShowReportedList,
+    required this.nationality,
+    required this.onChangeNationality,
   });
 
   @override
@@ -26,6 +30,7 @@ class SettingsModal extends StatefulWidget {
 
 class _SettingsModalState extends State<SettingsModal> {
   late bool _isPrivate = widget.isPrivate;
+  late String _nationality = widget.nationality;
 
   @override
   Widget build(BuildContext context) {
@@ -49,6 +54,7 @@ class _SettingsModalState extends State<SettingsModal> {
             ),
           ),
           _privacyItem(l10n),
+          _settingItem(l10n.settingsNationality, () => _showNationalityDialog(context)),
           _settingItem(l10n.settingsReportedList, widget.onShowReportedList),
           _settingItem(l10n.settingsBamboo, widget.onOpenBamboo),
           _settingItem(l10n.settingsTerms, () {
@@ -91,6 +97,50 @@ class _SettingsModalState extends State<SettingsModal> {
             },
           ),
         ],
+      ),
+    );
+  }
+
+  void _showNationalityDialog(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.nationalityTitle, textAlign: TextAlign.center),
+        content: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Expanded(child: _nationalityCard(ctx, '🇰🇷', l10n.nationalityKorea, 'KR')),
+            const SizedBox(width: 12),
+            Expanded(child: _nationalityCard(ctx, '🇯🇵', l10n.nationalityJapan, 'JP')),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _nationalityCard(BuildContext ctx, String flag, String label, String code) {
+    final selected = _nationality == code;
+    return GestureDetector(
+      onTap: () {
+        setState(() => _nationality = code);
+        widget.onChangeNationality(code);
+        Navigator.pop(ctx);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.pastelPurple.withValues(alpha: 0.15) : AppColors.background,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: selected ? AppColors.pastelPurple : AppColors.pastelPurple.withValues(alpha: 0.2)),
+        ),
+        child: Column(
+          children: [
+            Text(flag, style: const TextStyle(fontSize: 28)),
+            const SizedBox(height: 6),
+            Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          ],
+        ),
       ),
     );
   }

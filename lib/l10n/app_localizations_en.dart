@@ -273,6 +273,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsReportedList => '🚨 Users you\'ve reported';
 
   @override
+  String get settingsNationality => '🌐 Nationality/Language';
+
+  @override
   String get settingsBamboo => '🎋 Suggestion box';
 
   @override

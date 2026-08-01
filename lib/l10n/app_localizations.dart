@@ -598,6 +598,12 @@ abstract class AppLocalizations {
   /// **'🚨 내가 신고한 사용자'**
   String get settingsReportedList;
 
+  /// No description provided for @settingsNationality.
+  ///
+  /// In ko, this message translates to:
+  /// **'🌐 국적/언어'**
+  String get settingsNationality;
+
   /// No description provided for @settingsBamboo.
   ///
   /// In ko, this message translates to:

@@ -13,6 +13,13 @@ class NationalitySelectScreen extends StatefulWidget {
 
 class _NationalitySelectScreenState extends State<NationalitySelectScreen> {
   bool _saving = false;
+  late final String _highlighted = _detectDefault();
+
+  String _detectDefault() {
+    final deviceLocale = WidgetsBinding.instance.platformDispatcher.locale;
+    if (deviceLocale.countryCode == 'JP' || deviceLocale.languageCode == 'ja') return 'JP';
+    return 'KR';
+  }
 
   Future<void> _select(String code) async {
     if (_saving) return;
@@ -53,9 +60,9 @@ class _NationalitySelectScreenState extends State<NationalitySelectScreen> {
                         const SizedBox(height: 32),
                         Row(
                           children: [
-                            Expanded(child: _countryCard('🇰🇷', l10n.nationalityKorea, () => _select('KR'))),
+                            Expanded(child: _countryCard('🇰🇷', l10n.nationalityKorea, 'KR', () => _select('KR'))),
                             const SizedBox(width: 16),
-                            Expanded(child: _countryCard('🇯🇵', l10n.nationalityJapan, () => _select('JP'))),
+                            Expanded(child: _countryCard('🇯🇵', l10n.nationalityJapan, 'JP', () => _select('JP'))),
                           ],
                         ),
                       ],
@@ -67,15 +74,16 @@ class _NationalitySelectScreenState extends State<NationalitySelectScreen> {
     );
   }
 
-  Widget _countryCard(String flag, String label, VoidCallback onTap) {
+  Widget _countryCard(String flag, String label, String code, VoidCallback onTap) {
+    final selected = _highlighted == code;
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 24),
         decoration: BoxDecoration(
-          color: AppColors.card,
+          color: selected ? AppColors.pastelPurple.withValues(alpha: 0.15) : AppColors.card,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.pastelPurple.withValues(alpha: 0.3)),
+          border: Border.all(color: selected ? AppColors.pastelPurple : AppColors.pastelPurple.withValues(alpha: 0.3), width: selected ? 2 : 1),
         ),
         child: Column(
           children: [

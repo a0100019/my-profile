@@ -553,6 +553,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             uids: List<String>.from(profile['blockedUsers'] ?? []),
           );
         },
+        nationality: profile['nationality'] as String? ?? 'KR',
+        onChangeNationality: (code) => _saveProfile({'nationality': code}),
       ),
     );
   }
