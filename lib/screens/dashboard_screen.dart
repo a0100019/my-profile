@@ -92,6 +92,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           'email': user.email,
           'createdAt': DateTime.now().toIso8601String(),
           'tag': tag,
+          // 로그인 화면에서 고른(또는 기기 언어로 감지된) 언어를 그대로 국적값으로 저장
+          'nationality': mounted && Localizations.localeOf(context).languageCode == 'ja' ? 'JP' : 'KR',
         });
       }
 

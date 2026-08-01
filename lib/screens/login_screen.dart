@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_sign_in/google_sign_in.dart';
 import '../constants.dart';
 import '../l10n/app_localizations.dart';
+import '../main.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -59,6 +60,22 @@ class _LoginScreenState extends State<LoginScreen> {
           Positioned(top: 200, right: -60, child: _blob(AppColors.pastelBlue, 240)),
           Positioned(bottom: 80, left: 80, child: _blob(AppColors.pastelMint, 220)),
           Positioned(bottom: -40, right: 100, child: _blob(AppColors.pastelPurple, 180)),
+
+          SafeArea(
+            child: Align(
+              alignment: Alignment.topRight,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: GestureDetector(
+                  onTap: () => _showNationalityDialog(context),
+                  child: Text(
+                    Localizations.localeOf(context).languageCode == 'ja' ? '🇯🇵' : '🇰🇷',
+                    style: const TextStyle(fontSize: 22),
+                  ),
+                ),
+              ),
+            ),
+          ),
 
           SafeArea(
             child: Center(
@@ -223,6 +240,51 @@ class _LoginScreenState extends State<LoginScreen> {
       default:
         return ['🍕 피자', '🎬 영화', '🎵 음악', '📚 독서', '✈️ 여행', '💕 이상형', '🐶 동물', '💼 MBTI', '🎌 애니'];
     }
+  }
+
+  void _showNationalityDialog(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final current = Localizations.localeOf(context).languageCode == 'ja' ? 'JP' : 'KR';
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.nationalityTitle, textAlign: TextAlign.center),
+        content: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Expanded(child: _flagCard(ctx, '🇰🇷', l10n.nationalityKorea, current == 'KR', () => _pickLocale(ctx, 'KR'))),
+            const SizedBox(width: 12),
+            Expanded(child: _flagCard(ctx, '🇯🇵', l10n.nationalityJapan, current == 'JP', () => _pickLocale(ctx, 'JP'))),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _pickLocale(BuildContext ctx, String code) {
+    MyBioApp.setLocale(context, localeForNationality(code));
+    Navigator.pop(ctx);
+  }
+
+  Widget _flagCard(BuildContext ctx, String flag, String label, bool selected, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.pastelPurple.withValues(alpha: 0.15) : AppColors.background,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: selected ? AppColors.pastelPurple : AppColors.pastelPurple.withValues(alpha: 0.2)),
+        ),
+        child: Column(
+          children: [
+            Text(flag, style: const TextStyle(fontSize: 28)),
+            const SizedBox(height: 6),
+            Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _blob(Color color, double size) {

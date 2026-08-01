@@ -8,7 +8,6 @@ import 'screens/login_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/public_profile_screen.dart';
 import 'screens/locked_account_screen.dart';
-import 'screens/nationality_select_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -130,12 +129,11 @@ class _AuthedRouter extends StatelessWidget {
           return LockedAccountScreen(uid: user.uid);
         }
         final nationality = data?['nationality'] as String?;
-        if (nationality == null) {
-          return NationalitySelectScreen(uid: user.uid);
+        if (nationality != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            MyBioApp.setLocale(context, localeForNationality(nationality));
+          });
         }
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          MyBioApp.setLocale(context, localeForNationality(nationality));
-        });
         return const DashboardScreen();
       },
     );
