@@ -247,15 +247,27 @@ class _LoginScreenState extends State<LoginScreen> {
     final current = Localizations.localeOf(context).languageCode == 'ja' ? 'JP' : 'KR';
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l10n.nationalityTitle, textAlign: TextAlign.center),
-        content: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Expanded(child: _flagCard(ctx, '🇰🇷', l10n.nationalityKorea, current == 'KR', () => _pickLocale(ctx, 'KR'))),
-            const SizedBox(width: 12),
-            Expanded(child: _flagCard(ctx, '🇯🇵', l10n.nationalityJapan, current == 'JP', () => _pickLocale(ctx, 'JP'))),
-          ],
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 320),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(l10n.nationalityTitle, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600), textAlign: TextAlign.center),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(child: _flagCard(ctx, '🇰🇷', l10n.nationalityKorea, current == 'KR', () => _pickLocale(ctx, 'KR'))),
+                    const SizedBox(width: 12),
+                    Expanded(child: _flagCard(ctx, '🇯🇵', l10n.nationalityJapan, current == 'JP', () => _pickLocale(ctx, 'JP'))),
+                  ],
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
