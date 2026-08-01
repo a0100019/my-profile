@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../constants.dart';
+import '../l10n/app_localizations.dart';
 
 class SettingsModal extends StatefulWidget {
   final VoidCallback onLogout;
@@ -28,6 +29,7 @@ class _SettingsModalState extends State<SettingsModal> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.card,
@@ -40,28 +42,28 @@ class _SettingsModalState extends State<SettingsModal> {
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                const Text('⚙️ 설정', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                Text(l10n.settingsTitle, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                 const Spacer(),
                 GestureDetector(onTap: () => Navigator.pop(context), child: Text('✕', style: TextStyle(fontSize: 18, color: AppColors.muted))),
               ],
             ),
           ),
-          _privacyItem(),
-          _settingItem('🚨 내가 신고한 사용자', widget.onShowReportedList),
-          _settingItem('🎋 대나무숲', widget.onOpenBamboo),
-          _settingItem('📋 이용약관', () {
+          _privacyItem(l10n),
+          _settingItem(l10n.settingsReportedList, widget.onShowReportedList),
+          _settingItem(l10n.settingsBamboo, widget.onOpenBamboo),
+          _settingItem(l10n.settingsTerms, () {
             Navigator.pop(context);
             _showTerms(context);
           }),
-          _settingItem('🚪 로그아웃', () => _confirmLogout(context), isDestructive: true),
-          _settingItem('❌ 회원 탈퇴', () => _confirmDeleteAccount(context), isDestructive: true),
+          _settingItem(l10n.settingsLogout, () => _confirmLogout(context), isDestructive: true),
+          _settingItem(l10n.settingsDeleteAccount, () => _confirmDeleteAccount(context), isDestructive: true),
           const SizedBox(height: 16),
         ],
       ),
     );
   }
 
-  Widget _privacyItem() {
+  Widget _privacyItem(AppLocalizations l10n) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
@@ -71,10 +73,10 @@ class _SettingsModalState extends State<SettingsModal> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('🔒 프로필 비공개', style: TextStyle(fontSize: 14)),
+                Text(l10n.settingsPrivacy, style: const TextStyle(fontSize: 14)),
                 const SizedBox(height: 2),
                 Text(
-                  '비공개하면 검색 및 랜덤 프로필 보기에서 제외돼요',
+                  l10n.settingsPrivacyDesc,
                   style: TextStyle(fontSize: 11, color: AppColors.muted),
                 ),
               ],
@@ -105,20 +107,21 @@ class _SettingsModalState extends State<SettingsModal> {
   }
 
   void _confirmLogout(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('로그아웃'),
-        content: const Text('로그아웃 하시겠어요?'),
+        title: Text(l10n.settingsLogout.replaceAll('🚪 ', '')),
+        content: Text(l10n.settingsLogoutConfirm),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('취소')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(l10n.commonCancel)),
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
               Navigator.pop(context);
               widget.onLogout();
             },
-            child: Text('로그아웃', style: TextStyle(color: AppColors.pastelPink)),
+            child: Text(l10n.settingsLogout.replaceAll('🚪 ', ''), style: TextStyle(color: AppColors.pastelPink)),
           ),
         ],
       ),
@@ -126,20 +129,21 @@ class _SettingsModalState extends State<SettingsModal> {
   }
 
   void _confirmDeleteAccount(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('회원 탈퇴'),
-        content: const Text('탈퇴 시 프로필, 카테고리, 댓글 등 모든 데이터가 즉시 삭제되며 되돌릴 수 없어요. 정말 탈퇴하시겠어요?'),
+        title: Text(l10n.settingsDeleteAccount.replaceAll('❌ ', '')),
+        content: Text(l10n.settingsDeleteAccountConfirm),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('취소')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(l10n.commonCancel)),
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
               Navigator.pop(context);
               widget.onDeleteAccount();
             },
-            child: Text('탈퇴', style: TextStyle(color: AppColors.pastelPink)),
+            child: Text(l10n.commonDelete, style: TextStyle(color: AppColors.pastelPink)),
           ),
         ],
       ),
@@ -147,10 +151,11 @@ class _SettingsModalState extends State<SettingsModal> {
   }
 
   void _showTerms(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('이용약관', textAlign: TextAlign.center, style: TextStyle(fontSize: 16)),
+        title: Text(l10n.settingsTermsTitle, textAlign: TextAlign.center, style: const TextStyle(fontSize: 16)),
         content: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -169,7 +174,7 @@ class _SettingsModalState extends State<SettingsModal> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('확인', style: TextStyle(color: AppColors.pastelPurple)),
+            child: Text(l10n.commonConfirm, style: TextStyle(color: AppColors.pastelPurple)),
           ),
         ],
       ),

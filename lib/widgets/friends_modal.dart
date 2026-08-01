@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../constants.dart';
+import '../l10n/app_localizations.dart';
 import '../screens/public_profile_screen.dart';
 
 class FriendsModal extends StatefulWidget {
@@ -178,19 +179,20 @@ class _FriendsModalState extends State<FriendsModal> with SingleTickerProviderSt
   }
 
   void _confirmRemoveFriend(String targetUid, String username) {
+    final l10n = AppLocalizations.of(context);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('친구 삭제'),
-        content: Text('"$username"님을 친구에서 삭제할까요?'),
+        title: Text(l10n.friendsRemove),
+        content: Text(l10n.friendsRemoveConfirm(username)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('취소')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(l10n.commonCancel)),
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
               _removeFriend(targetUid);
             },
-            child: Text('삭제', style: TextStyle(color: AppColors.pastelPink)),
+            child: Text(l10n.commonDelete, style: TextStyle(color: AppColors.pastelPink)),
           ),
         ],
       ),
@@ -255,6 +257,7 @@ class _FriendsModalState extends State<FriendsModal> with SingleTickerProviderSt
   @override
   Widget build(BuildContext context) {
     if (_chatTarget != null) return _buildChatView();
+    final l10n = AppLocalizations.of(context);
 
     return Container(
       constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
@@ -269,7 +272,7 @@ class _FriendsModalState extends State<FriendsModal> with SingleTickerProviderSt
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
             child: Row(
               children: [
-                const Text('친구', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                Text(l10n.friendsTitle, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                 const Spacer(),
                 GestureDetector(onTap: () => Navigator.pop(context), child: Text('✕', style: TextStyle(fontSize: 18, color: AppColors.muted))),
               ],
@@ -283,10 +286,10 @@ class _FriendsModalState extends State<FriendsModal> with SingleTickerProviderSt
             labelColor: AppColors.foreground,
             unselectedLabelColor: AppColors.muted,
             indicatorColor: AppColors.pastelPurple,
-            tabs: const [
-              Tab(text: '👫 친구'),
-              Tab(text: '💬 전체 채팅'),
-              Tab(text: '🎲 랜덤 프로필'),
+            tabs: [
+              Tab(text: l10n.friendsTabFriends),
+              Tab(text: l10n.friendsTabGlobalChat),
+              Tab(text: l10n.friendsTabRandom),
             ],
           ),
           Expanded(
@@ -306,18 +309,19 @@ class _FriendsModalState extends State<FriendsModal> with SingleTickerProviderSt
 
   Widget _buildFriendsTab() {
     if (_loading) return const Center(child: CircularProgressIndicator(color: AppColors.pastelPurple));
+    final l10n = AppLocalizations.of(context);
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         if (_friendRequests.isNotEmpty) ...[
-          Text('친구 요청', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.pastelPink)),
+          Text(l10n.friendsRequestsHeader, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.pastelPink)),
           const SizedBox(height: 8),
           ..._friendRequests.map((r) => _friendTile(r, isRequest: true)),
           const SizedBox(height: 16),
         ],
         if (_friends.isEmpty && _friendRequests.isEmpty)
-          const Center(child: Padding(padding: EdgeInsets.all(32), child: Text('아직 친구가 없어요', style: TextStyle(color: AppColors.muted))))
+          Center(child: Padding(padding: const EdgeInsets.all(32), child: Text(l10n.friendsNoFriends, style: TextStyle(color: AppColors.muted))))
         else
           ..._friends.map((f) => _friendTile(f, isRequest: false)),
       ],
@@ -326,6 +330,7 @@ class _FriendsModalState extends State<FriendsModal> with SingleTickerProviderSt
 
   Widget _friendTile(Map<String, dynamic> user, {required bool isRequest}) {
     final photoURL = user['photoURL'] as String? ?? '';
+    final l10n = AppLocalizations.of(context);
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
@@ -367,13 +372,13 @@ class _FriendsModalState extends State<FriendsModal> with SingleTickerProviderSt
                   gradient: LinearGradient(colors: [AppColors.pastelPurple, AppColors.pastelPink]),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Text('수락', style: TextStyle(fontSize: 11, color: Colors.white)),
+                child: Text(l10n.friendsAccept, style: const TextStyle(fontSize: 11, color: Colors.white)),
               ),
             ),
             const SizedBox(width: 4),
             GestureDetector(
               onTap: () => _rejectFriend(user['uid']),
-              child: Text('거절', style: TextStyle(fontSize: 11, color: AppColors.muted)),
+              child: Text(l10n.friendsReject, style: TextStyle(fontSize: 11, color: AppColors.muted)),
             ),
           ] else ...[
             GestureDetector(
@@ -400,7 +405,7 @@ class _FriendsModalState extends State<FriendsModal> with SingleTickerProviderSt
             builder: (context, snapshot) {
               if (!snapshot.hasData) return const Center(child: CircularProgressIndicator(color: AppColors.pastelPurple));
               final docs = snapshot.data!.docs;
-              if (docs.isEmpty) return const Center(child: Text('아직 메시지가 없어요', style: TextStyle(color: AppColors.muted)));
+              if (docs.isEmpty) return Center(child: Text(AppLocalizations.of(context).friendsNoMessages, style: TextStyle(color: AppColors.muted)));
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 if (_scrollController.hasClients) _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
               });
@@ -432,7 +437,7 @@ class _FriendsModalState extends State<FriendsModal> with SingleTickerProviderSt
             controller: _searchController,
             onChanged: _onSearchChanged,
             decoration: InputDecoration(
-              hintText: '유저네임으로 검색',
+              hintText: AppLocalizations.of(context).friendsSearchHint,
               hintStyle: TextStyle(fontSize: 13, color: AppColors.muted),
               prefixIcon: Icon(Icons.search, size: 20, color: AppColors.muted),
               contentPadding: const EdgeInsets.symmetric(vertical: 8),
@@ -449,7 +454,7 @@ class _FriendsModalState extends State<FriendsModal> with SingleTickerProviderSt
 
   Widget _buildSearchResults() {
     if (_searching) return const Center(child: CircularProgressIndicator(color: AppColors.pastelPurple));
-    if (_searchResults.isEmpty) return const Center(child: Text('검색 결과가 없어요', style: TextStyle(color: AppColors.muted)));
+    if (_searchResults.isEmpty) return Center(child: Text(AppLocalizations.of(context).friendsSearchEmpty, style: TextStyle(color: AppColors.muted)));
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       children: _searchResults.map(_profileTile).toList(),
@@ -478,7 +483,7 @@ class _FriendsModalState extends State<FriendsModal> with SingleTickerProviderSt
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: AppColors.pastelPurple.withValues(alpha: 0.3)),
               ),
-              child: const Center(child: Text('더보기', style: TextStyle(fontSize: 13, color: AppColors.pastelPurple))),
+              child: Center(child: Text(AppLocalizations.of(context).friendsLoadMore, style: const TextStyle(fontSize: 13, color: AppColors.pastelPurple))),
             ),
           ),
       ],
@@ -587,19 +592,20 @@ class _FriendsModalState extends State<FriendsModal> with SingleTickerProviderSt
   }
 
   void _confirmDeleteChatMessage(String docId) {
+    final l10n = AppLocalizations.of(context);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('메시지 삭제'),
-        content: const Text('이 메시지를 삭제할까요?'),
+        title: Text(l10n.friendsMessageDeleteTitle),
+        content: Text(l10n.friendsMessageDeleteConfirm),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('취소')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(l10n.commonCancel)),
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
               _db.collection('globalChat').doc(docId).delete();
             },
-            child: Text('삭제', style: TextStyle(color: AppColors.pastelPink)),
+            child: Text(l10n.commonDelete, style: TextStyle(color: AppColors.pastelPink)),
           ),
         ],
       ),
@@ -634,7 +640,7 @@ class _FriendsModalState extends State<FriendsModal> with SingleTickerProviderSt
                     onTap: () => _confirmDeleteChatMessage(docId),
                     child: Padding(
                       padding: const EdgeInsets.only(top: 2),
-                      child: Text('삭제', style: TextStyle(fontSize: 10, color: AppColors.muted)),
+                      child: Text(AppLocalizations.of(context).commonDelete, style: TextStyle(fontSize: 10, color: AppColors.muted)),
                     ),
                   ),
               ],
@@ -659,7 +665,7 @@ class _FriendsModalState extends State<FriendsModal> with SingleTickerProviderSt
               maxLength: 300,
               buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
               decoration: InputDecoration(
-                hintText: '메시지 입력...',
+                hintText: AppLocalizations.of(context).friendsChatInputHint,
                 hintStyle: TextStyle(fontSize: 13, color: AppColors.muted),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide(color: AppColors.pastelPurple.withValues(alpha: 0.3))),

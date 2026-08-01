@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../constants.dart';
+import '../l10n/app_localizations.dart';
 
 class ProfileCard extends StatelessWidget {
   final Map<String, dynamic> profile;
@@ -37,6 +38,7 @@ class ProfileCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final photoURL = (profile['photoURL'] as String?) ?? user?.photoURL ?? '';
+    final l10n = AppLocalizations.of(context);
 
     return Container(
       width: double.infinity,
@@ -72,7 +74,7 @@ class ProfileCard extends StatelessWidget {
                         ),
                         GestureDetector(
                           onTap: onEditProfile,
-                          child: Text('프로필 변경', style: TextStyle(fontSize: 12, color: AppColors.pastelPurple)),
+                          child: Text(l10n.profileCardEdit, style: TextStyle(fontSize: 12, color: AppColors.pastelPurple)),
                         ),
                       ],
                     ),
@@ -82,14 +84,14 @@ class ProfileCard extends StatelessWidget {
                     Wrap(
                       spacing: 8,
                       children: [
-                        _statChip('조회수 ${profile['views'] ?? 0}'),
+                        _statChip(l10n.profileCardViews(profile['views'] ?? 0)),
                         GestureDetector(
                           onTap: onOpenLikedBy,
-                          child: _statChip('받은 좋아요 ${profile['likes'] ?? 0}'),
+                          child: _statChip(l10n.profileCardLikesReceived(profile['likes'] ?? 0)),
                         ),
                         GestureDetector(
                           onTap: onOpenLikedProfiles,
-                          child: _statChip('누른 좋아요'),
+                          child: _statChip(l10n.profileCardLikesGiven),
                         ),
                       ],
                     ),
@@ -113,11 +115,11 @@ class ProfileCard extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Text('자기소개', style: TextStyle(fontSize: 12, color: AppColors.muted, fontWeight: FontWeight.w500)),
+                    Text(l10n.profileCardBio, style: TextStyle(fontSize: 12, color: AppColors.muted, fontWeight: FontWeight.w500)),
                     const Spacer(),
                     GestureDetector(
                       onTap: onEditProfile,
-                      child: Text('편집', style: TextStyle(fontSize: 12, color: AppColors.pastelPurple)),
+                      child: Text(l10n.commonEdit, style: TextStyle(fontSize: 12, color: AppColors.pastelPurple)),
                     ),
                   ],
                 ),
@@ -132,7 +134,7 @@ class ProfileCard extends StatelessWidget {
                   ),
                   child: Column(
                     children: [
-                      Text('한줄 소개', style: TextStyle(fontSize: 10, color: AppColors.muted)),
+                      Text(l10n.profileCardBioOneLine, style: TextStyle(fontSize: 10, color: AppColors.muted)),
                       const SizedBox(height: 2),
                       Text(bio.isEmpty ? '-' : bio, style: TextStyle(fontSize: 14, color: AppColors.foreground.withValues(alpha: 0.7)), textAlign: TextAlign.center),
                     ],
@@ -181,7 +183,7 @@ class ProfileCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: AppColors.pastelPurple.withValues(alpha: 0.3)),
                     ),
-                    child: const Center(child: Text('🏆 순위 보기', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
+                    child: Center(child: Text(l10n.profileCardRanking, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
                   ),
                 ),
               ),
@@ -195,7 +197,7 @@ class ProfileCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: AppColors.pastelPurple.withValues(alpha: 0.3)),
                     ),
-                    child: Center(child: Text('💬 댓글 보기($commentCount)', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
+                    child: Center(child: Text(l10n.profileCardComments(commentCount), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
                   ),
                 ),
               ),

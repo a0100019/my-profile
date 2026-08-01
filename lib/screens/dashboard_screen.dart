@@ -4,8 +4,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:intl/intl.dart';
 
 import '../constants.dart';
+import '../l10n/app_localizations.dart';
 import '../widgets/profile_card.dart';
 import '../widgets/category_section.dart';
 import '../widgets/friends_modal.dart';
@@ -14,6 +16,7 @@ import '../widgets/comments_modal.dart';
 import '../widgets/settings_modal.dart';
 import '../widgets/edit_profile_modal.dart';
 import 'public_profile_screen.dart';
+import 'store_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -108,19 +111,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   void _showWarningDialog() {
     if (!mounted) return;
+    final l10n = AppLocalizations.of(context);
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        title: const Text('⚠️ 경고'),
-        content: const Text('다수의 사용자로부터 신고가 접수됐어요. 신고가 5회 누적되면 계정이 잠길 수 있어요.'),
+        title: Text(l10n.dashboardWarningTitle),
+        content: Text(l10n.dashboardWarningContent),
         actions: [
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
               _saveProfile({'warningPending': false});
             },
-            child: const Text('확인'),
+            child: Text(l10n.commonConfirm),
           ),
         ],
       ),
@@ -141,6 +145,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) setState(() => _copied = false);
     });
+  }
+
+  void _showStore() {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => const StoreScreen()));
   }
 
   List<CategoryInfo> get _addedCategories {
@@ -236,10 +244,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
 
                   const SizedBox(height: 12),
-                  _actionButton(
-                    _copied ? '복사됨!' : '프로필 공유',
-                    _copied ? Icons.check : Icons.share,
-                    _handleShare,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _actionButton(
+                          _copied ? AppLocalizations.of(context).dashboardShareCopied : AppLocalizations.of(context).dashboardShare,
+                          _copied ? Icons.check : Icons.share,
+                          _handleShare,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _actionButton(
+                          AppLocalizations.of(context).dashboardStore,
+                          Icons.storefront_outlined,
+                          _showStore,
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 16),
                   _buildAddCategory(),
@@ -280,7 +302,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('👫 친구', style: TextStyle(
+              Text('👫 ${AppLocalizations.of(context).dashboardFriends}', style: TextStyle(
                 fontSize: 14,
                 color: total > 0 ? AppColors.foreground : AppColors.muted,
                 fontWeight: total > 0 ? FontWeight.w600 : FontWeight.normal,
@@ -338,7 +360,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('카테고리 추가하기', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+          Text(AppLocalizations.of(context).dashboardAddCategory, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
           const SizedBox(height: 12),
           Wrap(
             spacing: 8, runSpacing: 8,
@@ -351,7 +373,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(color: AppColors.pastelPurple.withValues(alpha: 0.3)),
                   ),
-                  child: Text('${cat.emoji} ${cat.label}', style: const TextStyle(fontSize: 12)),
+                  child: Text('${cat.emoji} ${categoryLabel(context, cat)}', style: const TextStyle(fontSize: 12)),
                 ),
               );
             }).toList(),
@@ -372,7 +394,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             maxLength: 12,
             buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
             decoration: InputDecoration(
-              hintText: '원하는 카테고리를 만들어봐요',
+              hintText: AppLocalizations.of(context).dashboardCustomCategoryHint,
               hintStyle: TextStyle(fontSize: 12, color: AppColors.muted),
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               border: OutlineInputBorder(
@@ -397,7 +419,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               gradient: LinearGradient(colors: [AppColors.pastelPurple, AppColors.pastelPink]),
               borderRadius: BorderRadius.circular(16),
             ),
-            child: const Text('추가', style: TextStyle(fontSize: 13, color: Colors.white, fontWeight: FontWeight.w500)),
+            child: Text(AppLocalizations.of(context).commonAdd, style: const TextStyle(fontSize: 13, color: Colors.white, fontWeight: FontWeight.w500)),
           ),
         ),
       ],
@@ -411,12 +433,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final text = raw.replaceAll(RegExp(r'[./\[\]*~]'), '');
     if (text.isEmpty) return;
 
-    final match = allCategories.where((c) => c.label == text).firstOrNull;
+    final match = allCategories.where((c) => categoryLabel(context, c) == text).firstOrNull;
     final key = match?.key ?? 'custom_$text';
 
     if (profile[key] != null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('이미 추가된 카테고리예요.')),
+        SnackBar(content: Text(AppLocalizations.of(context).dashboardCategoryExists)),
       );
       return;
     }
@@ -473,7 +495,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       debugPrint('사진 업로드 실패: $e');
       if (!mounted) return null;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('사진 업로드에 실패했어요. 다시 시도해주세요.')),
+        SnackBar(content: Text(AppLocalizations.of(context).dashboardPhotoUploadFailed)),
       );
     }
     return null;
@@ -494,7 +516,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       debugPrint('항목 사진 업로드 실패: $e');
       if (!mounted) return null;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('사진 업로드에 실패했어요. 다시 시도해주세요.')),
+        SnackBar(content: Text(AppLocalizations.of(context).dashboardPhotoUploadFailed)),
       );
       return null;
     }
@@ -527,7 +549,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         onShowReportedList: () {
           Navigator.pop(context);
           _showUserList(
-            title: '내가 신고한 사용자',
+            title: AppLocalizations.of(context).dashboardReportedListTitle,
             uids: List<String>.from(profile['blockedUsers'] ?? []),
           );
         },
@@ -609,7 +631,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       debugPrint('회원 탈퇴 실패: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('탈퇴 처리에 실패했어요. 다시 시도해주세요.')),
+        SnackBar(content: Text(AppLocalizations.of(context).dashboardAccountDeleteFailed)),
       );
     }
   }
@@ -681,14 +703,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   void _showLikedBy() {
     _showUserList(
-      title: '좋아요 눌러준 사람',
+      title: AppLocalizations.of(context).dashboardLikedByTitle,
       uids: List<String>.from(profile['likedBy'] ?? []),
     );
   }
 
   void _showLikedProfiles() {
     _showUserList(
-      title: '내가 좋아요 누른 프로필',
+      title: AppLocalizations.of(context).dashboardLikedProfilesTitle,
       uids: List<String>.from(profile['likedProfiles'] ?? []),
     );
   }
@@ -745,9 +767,9 @@ class _UserListSheet extends StatelessWidget {
           ),
           Flexible(
             child: uids.isEmpty
-                ? const Padding(
-                    padding: EdgeInsets.all(32),
-                    child: Text('아직 없어요', style: TextStyle(color: AppColors.muted)),
+                ? Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Text(AppLocalizations.of(context).friendsEmptyList, style: TextStyle(color: AppColors.muted)),
                   )
                 : FutureBuilder<List<Map<String, dynamic>>>(
                     future: _fetchUsers(),
@@ -825,7 +847,7 @@ class _BambooModalState extends State<_BambooModal> {
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                const Text('🎋 대나무숲', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                Text(AppLocalizations.of(context).bambooTitle, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                 const Spacer(),
                 GestureDetector(onTap: () => Navigator.pop(context), child: Text('✕', style: TextStyle(fontSize: 18, color: AppColors.muted))),
               ],
@@ -840,7 +862,7 @@ class _BambooModalState extends State<_BambooModal> {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
-                '대나무숲은 사이트에 관한 의견을 자유롭게 작성하는 곳입니다. 익명이니 안심하고 바라는 점을 적어주세요!',
+                AppLocalizations.of(context).bambooDescription,
                 style: TextStyle(fontSize: 12, color: AppColors.foreground.withValues(alpha: 0.7)),
               ),
             ),
@@ -852,7 +874,7 @@ class _BambooModalState extends State<_BambooModal> {
               builder: (context, snapshot) {
                 if (!snapshot.hasData) return const Center(child: CircularProgressIndicator(color: AppColors.pastelPurple));
                 final docs = snapshot.data!.docs;
-                if (docs.isEmpty) return const Center(child: Text('아직 글이 없어요', style: TextStyle(color: AppColors.muted)));
+                if (docs.isEmpty) return Center(child: Text(AppLocalizations.of(context).bambooEmpty, style: TextStyle(color: AppColors.muted)));
                 return ListView.builder(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   itemCount: docs.length,
@@ -873,7 +895,7 @@ class _BambooModalState extends State<_BambooModal> {
                           if (ts != null) ...[
                             const SizedBox(height: 4),
                             Text(
-                              _formatDate(ts.toDate()),
+                              _formatDate(context, ts.toDate()),
                               style: TextStyle(fontSize: 10, color: AppColors.muted),
                             ),
                           ],
@@ -898,7 +920,7 @@ class _BambooModalState extends State<_BambooModal> {
                     maxLength: 500,
                     buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
                     decoration: InputDecoration(
-                      hintText: '익명으로 작성하기...',
+                      hintText: AppLocalizations.of(context).bambooInputHint,
                       hintStyle: TextStyle(fontSize: 13, color: AppColors.muted),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide(color: AppColors.pastelPurple.withValues(alpha: 0.3))),
@@ -941,7 +963,7 @@ class _BambooModalState extends State<_BambooModal> {
     setState(() => _sending = false);
   }
 
-  String _formatDate(DateTime dt) {
-    return '${dt.month}월 ${dt.day}일';
+  String _formatDate(BuildContext context, DateTime dt) {
+    return DateFormat.MMMd(Localizations.localeOf(context).languageCode).format(dt);
   }
 }

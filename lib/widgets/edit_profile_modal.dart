@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../constants.dart';
+import '../l10n/app_localizations.dart';
 
 class EditProfileModal extends StatefulWidget {
   final User? user;
@@ -70,6 +71,7 @@ class _EditProfileModalState extends State<EditProfileModal> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Container(
       constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
       decoration: const BoxDecoration(
@@ -83,7 +85,7 @@ class _EditProfileModalState extends State<EditProfileModal> {
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                const Text('프로필 편집', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                Text(l10n.editProfileTitle, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                 const Spacer(),
                 GestureDetector(onTap: () => Navigator.pop(context), child: Text('✕', style: TextStyle(fontSize: 18, color: AppColors.muted))),
               ],
@@ -97,16 +99,16 @@ class _EditProfileModalState extends State<EditProfileModal> {
                 children: [
                   Center(child: _buildAvatarPicker()),
                   const SizedBox(height: 20),
-                  _label('이름'),
+                  _label(l10n.editProfileName),
                   _input(_nameController, maxLength: 10),
                   const SizedBox(height: 12),
-                  _label('유저네임'),
+                  _label(l10n.editProfileUsername),
                   _input(_usernameController, maxLength: 15),
                   const SizedBox(height: 12),
-                  _label('한줄 소개'),
+                  _label(l10n.editProfileBio),
                   _input(_bioController, maxLength: 200, maxLines: 3),
                   const SizedBox(height: 16),
-                  _label('정보 필드'),
+                  _label(l10n.editProfileInfoFields),
                   ..._fields.asMap().entries.map((entry) {
                     final i = entry.key;
                     final f = entry.value;
@@ -136,7 +138,7 @@ class _EditProfileModalState extends State<EditProfileModal> {
                         child: TextField(
                           controller: _newLabelController,
                           decoration: InputDecoration(
-                            hintText: '항목명',
+                            hintText: l10n.editProfileFieldLabelHint,
                             hintStyle: TextStyle(fontSize: 12, color: AppColors.muted),
                             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -152,7 +154,7 @@ class _EditProfileModalState extends State<EditProfileModal> {
                         child: TextField(
                           controller: _newValueController,
                           decoration: InputDecoration(
-                            hintText: '내용',
+                            hintText: l10n.editProfileFieldValueHint,
                             hintStyle: TextStyle(fontSize: 12, color: AppColors.muted),
                             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -203,7 +205,7 @@ class _EditProfileModalState extends State<EditProfileModal> {
                         height: 18,
                         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                       )
-                    : const Text('저장', style: TextStyle(fontWeight: FontWeight.w500)),
+                    : Text(l10n.commonSave, style: const TextStyle(fontWeight: FontWeight.w500)),
               ),
             ),
           ),
@@ -288,10 +290,11 @@ class _EditProfileModalState extends State<EditProfileModal> {
   }
 
   Future<void> _save() async {
+    final l10n = AppLocalizations.of(context);
     final newUsername = _usernameController.text.trim();
     if (newUsername.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('유저네임을 입력해주세요.')),
+        SnackBar(content: Text(l10n.editProfileUsernameEmpty)),
       );
       return;
     }
@@ -310,7 +313,7 @@ class _EditProfileModalState extends State<EditProfileModal> {
         if (!mounted) return;
         setState(() => _saving = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('이미 사용 중인 유저네임이에요.')),
+          SnackBar(content: Text(l10n.editProfileUsernameTaken)),
         );
         return;
       }

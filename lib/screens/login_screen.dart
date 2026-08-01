@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_sign_in/google_sign_in.dart';
 import '../constants.dart';
+import '../l10n/app_localizations.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -17,9 +18,10 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _showTerms = false;
 
   Future<void> _handleGoogleLogin() async {
+    final l10n = AppLocalizations.of(context);
     if (!_agreed) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('약관에 동의해주세요.')),
+        SnackBar(content: Text(l10n.loginAgreeTerms)),
       );
       return;
     }
@@ -41,13 +43,14 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
       setState(() => _loading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('로그인에 실패했어요. 다시 시도해주세요.')),
+        SnackBar(content: Text(l10n.loginFailed)),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       body: Stack(
         children: [
@@ -69,22 +72,16 @@ class _LoginScreenState extends State<LoginScreen> {
                       // 로고
                       RichText(
                         text: TextSpan(
-                          style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold),
+                          style: const TextStyle(fontSize: 34, fontWeight: FontWeight.bold),
                           children: [
-                            TextSpan(text: 'm', style: TextStyle(color: AppColors.pastelPurple)),
-                            TextSpan(text: 'y', style: TextStyle(color: AppColors.pastelPink)),
-                            TextSpan(text: 'b', style: TextStyle(color: AppColors.pastelBlue)),
-                            TextSpan(text: 'i', style: TextStyle(color: AppColors.pastelMint)),
-                            TextSpan(text: 'o', style: TextStyle(color: AppColors.pastelPeach)),
-                            TextSpan(text: '.', style: TextStyle(color: AppColors.foreground)),
-                            TextSpan(text: 'k', style: TextStyle(color: AppColors.pastelPurple)),
-                            TextSpan(text: 'r', style: TextStyle(color: AppColors.pastelPink)),
+                            TextSpan(text: 'murimuri', style: TextStyle(color: AppColors.pastelPurple)),
+                            TextSpan(text: '.io', style: TextStyle(color: AppColors.pastelBlue)),
                           ],
                         ),
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        '나만의 취향을 담은 프로필을 만들고\n친구에게 공유해보세요',
+                        l10n.loginSubtitle,
                         textAlign: TextAlign.center,
                         style: TextStyle(fontSize: 14, color: AppColors.muted, height: 1.5),
                       ),
@@ -128,7 +125,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             const SizedBox(height: 16),
                             Wrap(
                               spacing: 8, runSpacing: 8,
-                              children: ['🍕 피자', '🎬 영화', '🎵 음악', '📚 독서', '✈️ 여행', '💕 이상형', '🐶 동물', '💼 MBTI', '🎌 애니']
+                              children: _previewTags(context)
                                   .map((tag) => Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                                     decoration: BoxDecoration(
@@ -168,7 +165,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 errorBuilder: (_, __, ___) => const Icon(Icons.g_mobiledata, size: 20),
                               ),
                               const SizedBox(width: 12),
-                              Text(_loading ? '로그인 중...' : 'Google로 시작하기', style: const TextStyle(fontWeight: FontWeight.w500)),
+                              Text(_loading ? l10n.loginLoggingIn : l10n.loginGoogleButton, style: const TextStyle(fontWeight: FontWeight.w500)),
                             ],
                           ),
                         ),
@@ -192,14 +189,14 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ),
                                 ),
                                 const SizedBox(width: 8),
-                                Text('이용약관에 동의합니다', style: TextStyle(fontSize: 12, color: AppColors.muted)),
+                                Text(l10n.loginAgreeCheckbox, style: TextStyle(fontSize: 12, color: AppColors.muted)),
                               ],
                             ),
                           ),
                           const SizedBox(width: 8),
                           GestureDetector(
                             onTap: () => setState(() => _showTerms = true),
-                            child: Text('자세히보기', style: TextStyle(fontSize: 12, color: AppColors.pastelPurple, decoration: TextDecoration.underline)),
+                            child: Text(l10n.loginViewTerms, style: TextStyle(fontSize: 12, color: AppColors.pastelPurple, decoration: TextDecoration.underline)),
                           ),
                         ],
                       ),
@@ -217,6 +214,17 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  List<String> _previewTags(BuildContext context) {
+    switch (Localizations.localeOf(context).languageCode) {
+      case 'ja':
+        return ['🍕 グルメ', '🎬 映画', '🎵 音楽', '📚 読書', '✈️ 旅行', '💕 理想のタイプ', '🐶 動物', '💼 MBTI', '🎌 アニメ'];
+      case 'en':
+        return ['🍕 Food', '🎬 Movies', '🎵 Music', '📚 Reading', '✈️ Travel', '💕 Ideal Type', '🐶 Animals', '💼 MBTI', '🎌 Anime'];
+      default:
+        return ['🍕 피자', '🎬 영화', '🎵 음악', '📚 독서', '✈️ 여행', '💕 이상형', '🐶 동물', '💼 MBTI', '🎌 애니'];
+    }
+  }
+
   Widget _blob(Color color, double size) {
     return Container(
       width: size, height: size,
@@ -228,6 +236,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _buildTermsModal() {
+    final l10n = AppLocalizations.of(context);
     return GestureDetector(
       onTap: () => setState(() => _showTerms = false),
       child: Container(
@@ -247,7 +256,7 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('이용약관', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                  Text(l10n.loginTermsTitle, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 16),
                   Flexible(
                     child: SingleChildScrollView(
@@ -276,7 +285,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         backgroundColor: AppColors.pastelPurple,
                         foregroundColor: Colors.white,
                       ),
-                      child: const Text('확인', style: TextStyle(fontWeight: FontWeight.w500)),
+                      child: Text(l10n.commonConfirm, style: const TextStyle(fontWeight: FontWeight.w500)),
                     ),
                   ),
                 ],

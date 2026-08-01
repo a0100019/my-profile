@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../constants.dart';
+import '../l10n/app_localizations.dart';
 
 class LockedAccountScreen extends StatefulWidget {
   final String uid;
@@ -43,13 +44,14 @@ class _LockedAccountScreenState extends State<LockedAccountScreen> {
       if (!mounted) return;
       setState(() => _sending = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('전송에 실패했어요. 다시 시도해주세요.')),
+        SnackBar(content: Text(AppLocalizations.of(context).lockedContactFailed)),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
@@ -63,15 +65,15 @@ class _LockedAccountScreenState extends State<LockedAccountScreen> {
                   const SizedBox(height: 32),
                   const Center(child: Text('🔒', style: TextStyle(fontSize: 48))),
                   const SizedBox(height: 16),
-                  const Text('계정이 잠겼어요', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600), textAlign: TextAlign.center),
+                  Text(l10n.lockedTitle, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600), textAlign: TextAlign.center),
                   const SizedBox(height: 8),
                   Text(
-                    '다수의 사용자로부터 신고가 접수되어 계정 이용이 제한됐어요.',
+                    l10n.lockedSubtitle,
                     style: TextStyle(fontSize: 13, color: AppColors.muted),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 28),
-                  const Text('신고 사유', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                  Text(l10n.lockedReasonTitle, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 8),
                   StreamBuilder<QuerySnapshot>(
                     stream: _db.collection('reports').where('reportedUid', isEqualTo: widget.uid).snapshots(),
@@ -81,7 +83,7 @@ class _LockedAccountScreenState extends State<LockedAccountScreen> {
                       }
                       final docs = snapshot.data!.docs;
                       if (docs.isEmpty) {
-                        return Text('등록된 사유가 없어요', style: TextStyle(color: AppColors.muted, fontSize: 13));
+                        return Text(l10n.lockedReasonEmpty, style: TextStyle(color: AppColors.muted, fontSize: 13));
                       }
                       return Column(
                         children: docs.map((d) {
@@ -96,7 +98,7 @@ class _LockedAccountScreenState extends State<LockedAccountScreen> {
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
-                              reason.isEmpty ? '(사유 미작성)' : reason,
+                              reason.isEmpty ? l10n.lockedReasonUnwritten : reason,
                               style: const TextStyle(fontSize: 13),
                             ),
                           );
@@ -105,9 +107,9 @@ class _LockedAccountScreenState extends State<LockedAccountScreen> {
                     },
                   ),
                   const SizedBox(height: 28),
-                  const Text('문의하기', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                  Text(l10n.lockedContactTitle, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 4),
-                  Text('오류가 있다면 알려주세요', style: TextStyle(fontSize: 12, color: AppColors.muted)),
+                  Text(l10n.lockedContactSubtitle, style: TextStyle(fontSize: 12, color: AppColors.muted)),
                   const SizedBox(height: 8),
                   if (_sent)
                     Container(
@@ -117,7 +119,7 @@ class _LockedAccountScreenState extends State<LockedAccountScreen> {
                         color: AppColors.pastelMint.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Text('문의가 접수됐어요. 검토 후 반영해드릴게요.', style: TextStyle(fontSize: 13)),
+                      child: Text(l10n.lockedContactSent, style: const TextStyle(fontSize: 13)),
                     )
                   else ...[
                     TextField(
@@ -125,7 +127,7 @@ class _LockedAccountScreenState extends State<LockedAccountScreen> {
                       maxLength: 500,
                       maxLines: 4,
                       decoration: InputDecoration(
-                        hintText: '내용을 입력해주세요',
+                        hintText: l10n.lockedContactHint,
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                         enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.pastelPurple.withValues(alpha: 0.3))),
                       ),
@@ -143,7 +145,7 @@ class _LockedAccountScreenState extends State<LockedAccountScreen> {
                         ),
                         child: _sending
                             ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                            : const Text('제출'),
+                            : Text(l10n.lockedContactSubmit),
                       ),
                     ),
                   ],
@@ -151,7 +153,7 @@ class _LockedAccountScreenState extends State<LockedAccountScreen> {
                   Center(
                     child: TextButton(
                       onPressed: () => FirebaseAuth.instance.signOut(),
-                      child: Text('로그아웃', style: TextStyle(color: AppColors.muted)),
+                      child: Text(l10n.lockedLogout, style: TextStyle(color: AppColors.muted)),
                     ),
                   ),
                 ],

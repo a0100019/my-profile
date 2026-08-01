@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'l10n/app_localizations.dart';
 
 class AppColors {
   static const pastelPink = Color(0xFFFFB5C2);
@@ -39,6 +40,30 @@ const allCategories = [
   CategoryInfo('mbti', '💼', 'MBTI'),
   CategoryInfo('ideal', '💕', '이상형'),
 ];
+
+String categoryLabel(BuildContext context, CategoryInfo category) {
+  final l10n = AppLocalizations.of(context);
+  switch (category.key) {
+    case 'food': return l10n.categoryFood;
+    case 'movie': return l10n.categoryMovie;
+    case 'music': return l10n.categoryMusic;
+    case 'book': return l10n.categoryBook;
+    case 'hobby': return l10n.categoryHobby;
+    case 'travel': return l10n.categoryTravel;
+    case 'game': return l10n.categoryGame;
+    case 'drama': return l10n.categoryDrama;
+    case 'drink': return l10n.categoryDrink;
+    case 'comic': return l10n.categoryComic;
+    case 'pokemon': return l10n.categoryPokemon;
+    case 'youtube': return l10n.categoryYoutube;
+    case 'exercise': return l10n.categoryExercise;
+    case 'webtoon': return l10n.categoryWebtoon;
+    case 'brand': return l10n.categoryBrand;
+    case 'mbti': return l10n.categoryMbti;
+    case 'ideal': return l10n.categoryIdeal;
+    default: return category.label;
+  }
+}
 
 const rowColors = [
   (color: AppColors.pastelPink, opacity: 0.25),

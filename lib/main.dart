@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'constants.dart';
+import 'l10n/app_localizations.dart';
 import 'screens/login_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/public_profile_screen.dart';
 import 'screens/locked_account_screen.dart';
+import 'screens/nationality_select_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -15,14 +18,42 @@ void main() async {
   runApp(const MyBioApp());
 }
 
-class MyBioApp extends StatelessWidget {
+Locale localeForNationality(String? nationality) {
+  return nationality == 'JP' ? const Locale('ja') : const Locale('ko');
+}
+
+class MyBioApp extends StatefulWidget {
   const MyBioApp({super.key});
+
+  static void setLocale(BuildContext context, Locale locale) {
+    context.findAncestorStateOfType<_MyBioAppState>()?._setLocale(locale);
+  }
+
+  @override
+  State<MyBioApp> createState() => _MyBioAppState();
+}
+
+class _MyBioAppState extends State<MyBioApp> {
+  Locale _locale = const Locale('ko');
+
+  void _setLocale(Locale locale) {
+    if (_locale == locale) return;
+    setState(() => _locale = locale);
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'murimuri.io',
       debugShowCheckedModeBanner: false,
+      locale: _locale,
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: AppLocalizations.supportedLocales,
       theme: ThemeData(
         colorScheme: ColorScheme.light(
           surface: AppColors.background,
@@ -90,6 +121,13 @@ class _AuthedRouter extends StatelessWidget {
         if (data?['isLocked'] == true) {
           return LockedAccountScreen(uid: user.uid);
         }
+        final nationality = data?['nationality'] as String?;
+        if (nationality == null) {
+          return NationalitySelectScreen(uid: user.uid);
+        }
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          MyBioApp.setLocale(context, localeForNationality(nationality));
+        });
         return const DashboardScreen();
       },
     );

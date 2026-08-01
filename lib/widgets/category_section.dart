@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../constants.dart';
+import '../l10n/app_localizations.dart';
 
 class CategorySection extends StatefulWidget {
   final CategoryInfo category;
@@ -50,6 +51,7 @@ class _CategorySectionState extends State<CategorySection> {
   @override
   Widget build(BuildContext context) {
     final color = rowColors[widget.colorIndex].color;
+    final l10n = AppLocalizations.of(context);
 
     return Container(
       decoration: BoxDecoration(
@@ -66,7 +68,7 @@ class _CategorySectionState extends State<CategorySection> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
                 children: [
-                  Text('${widget.category.emoji} ${widget.category.label}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                  Text('${widget.category.emoji} ${categoryLabel(context, widget.category)}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
                   const SizedBox(width: 8),
                   Text('${widget.items.length}', style: TextStyle(fontSize: 12, color: AppColors.muted)),
                   const Spacer(),
@@ -87,7 +89,7 @@ class _CategorySectionState extends State<CategorySection> {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Align(
                   alignment: Alignment.centerLeft,
-                  child: Text('아직 항목이 없어요', style: TextStyle(fontSize: 13, color: AppColors.muted)),
+                  child: Text(l10n.categoryEmptyItems, style: TextStyle(fontSize: 13, color: AppColors.muted)),
                 ),
               )
             else
@@ -180,7 +182,7 @@ class _CategorySectionState extends State<CategorySection> {
                       child: TextField(
                         controller: _linkController,
                         decoration: InputDecoration(
-                          hintText: '링크(URL) 입력',
+                          hintText: l10n.categoryAddLinkHint,
                           hintStyle: TextStyle(fontSize: 12, color: AppColors.muted),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.pastelPurple.withValues(alpha: 0.3))),
@@ -226,7 +228,7 @@ class _CategorySectionState extends State<CategorySection> {
                           maxLength: 50,
                           buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
                           decoration: InputDecoration(
-                            hintText: '새 항목 추가',
+                            hintText: l10n.categoryAddItemHint,
                             hintStyle: TextStyle(fontSize: 13, color: AppColors.muted),
                             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.pastelPurple.withValues(alpha: 0.3))),
@@ -278,7 +280,7 @@ class _CategorySectionState extends State<CategorySection> {
                 children: [
                   GestureDetector(
                     onTap: () => _confirmRemove(context),
-                    child: Text('카테고리 삭제', style: TextStyle(fontSize: 12, color: AppColors.pastelPink)),
+                    child: Text(l10n.categoryDeleteCategory, style: TextStyle(fontSize: 12, color: AppColors.pastelPink)),
                   ),
                 ],
               ),
@@ -343,19 +345,20 @@ class _CategorySectionState extends State<CategorySection> {
   }
 
   void _confirmRemove(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('카테고리 삭제'),
-        content: Text('"${widget.category.label}" 카테고리를 삭제할까요?'),
+        title: Text(l10n.categoryDeleteCategory),
+        content: Text(l10n.categoryDeleteConfirm(categoryLabel(context, widget.category))),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('취소')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(l10n.commonCancel)),
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
               widget.onRemove();
             },
-            child: Text('삭제', style: TextStyle(color: AppColors.pastelPink)),
+            child: Text(l10n.commonDelete, style: TextStyle(color: AppColors.pastelPink)),
           ),
         ],
       ),

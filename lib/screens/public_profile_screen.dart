@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:intl/intl.dart';
 import '../constants.dart';
+import '../l10n/app_localizations.dart';
 import 'locked_account_screen.dart';
 
 class PublicProfileScreen extends StatefulWidget {
@@ -145,30 +147,31 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
   }
 
   void _showReportDialog() {
+    final l10n = AppLocalizations.of(context);
     final reasonController = TextEditingController();
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('신고하기'),
+        title: Text(l10n.reportTitle),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('신고 사유를 입력해주세요.', style: TextStyle(fontSize: 13)),
+            Text(l10n.reportPrompt, style: const TextStyle(fontSize: 13)),
             const SizedBox(height: 8),
             TextField(
               controller: reasonController,
               maxLength: 200,
               maxLines: 3,
               decoration: InputDecoration(
-                hintText: '예: 욕설, 도배, 사칭 등',
+                hintText: l10n.reportHint,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('취소')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(l10n.commonCancel)),
           TextButton(
             onPressed: () {
               final reason = reasonController.text.trim();
@@ -176,7 +179,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
               Navigator.pop(ctx);
               _reportUser(reason);
             },
-            child: Text('신고', style: TextStyle(color: AppColors.pastelPink)),
+            child: Text(l10n.reportButton.replaceAll('🚨 ', ''), style: TextStyle(color: AppColors.pastelPink)),
           ),
         ],
       ),
@@ -194,7 +197,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
       if (existing.exists) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('이미 신고한 사용자예요.')),
+          SnackBar(content: Text(AppLocalizations.of(context).reportAlreadyReported)),
         );
         return;
       }
@@ -232,13 +235,13 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
       if (!mounted) return;
       setState(() => _reported = true);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('신고가 접수됐어요.')),
+        SnackBar(content: Text(AppLocalizations.of(context).reportSubmitted)),
       );
     } catch (e) {
       debugPrint('신고 처리 실패: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('신고 처리에 실패했어요. 다시 시도해주세요.')),
+        SnackBar(content: Text(AppLocalizations.of(context).reportFailed)),
       );
     }
   }
@@ -254,19 +257,20 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
   }
 
   void _confirmDeleteComment(String commentId) {
+    final l10n = AppLocalizations.of(context);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('댓글 삭제'),
-        content: const Text('이 댓글을 삭제할까요?'),
+        title: Text(l10n.commentsDeleteTitle),
+        content: Text(l10n.commentsDeleteConfirm),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('취소')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(l10n.commonCancel)),
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
               _db.collection('users').doc(_profileUserId).collection('comments').doc(commentId).delete();
             },
-            child: Text('삭제', style: TextStyle(color: AppColors.pastelPink)),
+            child: Text(l10n.commonDelete, style: TextStyle(color: AppColors.pastelPink)),
           ),
         ],
       ),
@@ -275,13 +279,14 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
 
   Future<void> _handleComment() async {
     if (_currentUser == null || _profileUserId.isEmpty || _commentController.text.trim().isEmpty) return;
+    final l10n = AppLocalizations.of(context);
     setState(() => _submitting = true);
     try {
       final authorSnap = await _db.collection('users').doc(_currentUser!.uid).get();
       final authorData = authorSnap.data() ?? {};
       await _db.collection('users').doc(_profileUserId).collection('comments').add({
         'text': _commentController.text.trim(),
-        'authorName': authorData['displayName'] ?? _currentUser!.displayName ?? '익명',
+        'authorName': authorData['displayName'] ?? _currentUser!.displayName ?? l10n.publicProfileAnonymous,
         'authorUsername': authorData['username'] ?? '',
         'authorTag': authorData['tag'] ?? 0,
         'authorPhoto': authorData['photoURL'] ?? _currentUser!.photoURL ?? '',
@@ -293,7 +298,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
       debugPrint('댓글 등록 실패: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('댓글 등록에 실패했어요. 다시 시도해주세요.')),
+          SnackBar(content: Text(l10n.publicProfileCommentFailed)),
         );
       }
     } finally {
@@ -325,6 +330,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     if (_loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator(color: AppColors.pastelPurple)));
     }
@@ -336,7 +342,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
             children: [
               const Text('😢', style: TextStyle(fontSize: 60)),
               const SizedBox(height: 16),
-              const Text('프로필을 찾을 수 없어요', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+              Text(l10n.publicProfileNotFound, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
             ],
           ),
         ),
@@ -350,7 +356,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
             children: [
               const Text('🚫', style: TextStyle(fontSize: 60)),
               const SizedBox(height: 16),
-              const Text('접근할 수 없는 프로필이에요', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+              Text(l10n.publicProfileBlocked, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
             ],
           ),
         ),
@@ -423,22 +429,22 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                                   Wrap(
                                     spacing: 8,
                                     children: [
-                                      _statChip('조회수 $_views'),
+                                      _statChip(l10n.profileCardViews(_views)),
                                       GestureDetector(
                                         onTap: _handleLike,
-                                        child: _statChip('좋아요 $_likes', highlight: _liked),
+                                        child: _statChip(l10n.publicProfileLikes(_likes), highlight: _liked),
                                       ),
                                       if (_currentUser != null && _currentUser!.uid != _profileUserId && _friendStatus != 'friend')
                                         GestureDetector(
                                           onTap: _handleFriend,
                                           child: _statChip(
-                                            _friendStatus == 'pending' ? '요청됨' : '친구 추가',
+                                            _friendStatus == 'pending' ? l10n.publicProfileFriendPending : l10n.publicProfileFriendAdd,
                                           ),
                                         ),
                                       if (_currentUser != null && _currentUser!.uid != _profileUserId)
                                         GestureDetector(
                                           onTap: _reported ? null : _showReportDialog,
-                                          child: _statChip(_reported ? '신고됨' : '🚨 신고'),
+                                          child: _statChip(_reported ? l10n.reportedButton : l10n.reportButton),
                                         ),
                                     ],
                                   ),
@@ -472,7 +478,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                                     ),
                                     child: Column(
                                       children: [
-                                        Text('한줄 소개', style: TextStyle(fontSize: 10, color: AppColors.muted)),
+                                        Text(l10n.profileCardBioOneLine, style: TextStyle(fontSize: 10, color: AppColors.muted)),
                                         const SizedBox(height: 2),
                                         Text(bio, style: TextStyle(fontSize: 14, color: AppColors.foreground.withValues(alpha: 0.7)), textAlign: TextAlign.center),
                                       ],
@@ -542,7 +548,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                                 child: Row(
                                   children: [
-                                    Text('${cat.emoji} ${cat.label}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                                    Text('${cat.emoji} ${categoryLabel(context, cat)}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
                                     const SizedBox(width: 8),
                                     Text('${items.length}', style: TextStyle(fontSize: 12, color: AppColors.muted)),
                                     const Spacer(),
@@ -626,7 +632,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('💬 댓글', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                        Text(l10n.publicProfileCommentsHeader, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
                         const SizedBox(height: 12),
                         StreamBuilder<QuerySnapshot>(
                           stream: _profileUserId.isNotEmpty
@@ -635,7 +641,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                           builder: (context, snapshot) {
                             if (!snapshot.hasData) return const SizedBox.shrink();
                             final docs = snapshot.data!.docs;
-                            if (docs.isEmpty) return Text('아직 댓글이 없어요', style: TextStyle(fontSize: 13, color: AppColors.muted));
+                            if (docs.isEmpty) return Text(l10n.commentsEmpty, style: TextStyle(fontSize: 13, color: AppColors.muted));
                             return Column(
                               children: docs.map((d) {
                                 final data = d.data() as Map<String, dynamic>;
@@ -662,7 +668,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                                                 const SizedBox(width: 4),
                                                 Text('#${data['authorTag'] ?? ''}', style: TextStyle(fontSize: 10, color: AppColors.muted)),
                                                 const Spacer(),
-                                                if (ts != null) Text('${ts.toDate().month}월 ${ts.toDate().day}일', style: TextStyle(fontSize: 10, color: AppColors.muted)),
+                                                if (ts != null) Text(DateFormat.MMMd(Localizations.localeOf(context).languageCode).format(ts.toDate()), style: TextStyle(fontSize: 10, color: AppColors.muted)),
                                               ],
                                             ),
                                             Text(data['text'] ?? '', style: TextStyle(fontSize: 13, color: AppColors.foreground.withValues(alpha: 0.8))),
@@ -674,7 +680,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                                           onTap: () => _confirmDeleteComment(d.id),
                                           child: Padding(
                                             padding: const EdgeInsets.only(left: 8),
-                                            child: Text('삭제', style: TextStyle(fontSize: 10, color: AppColors.muted)),
+                                            child: Text(l10n.commonDelete, style: TextStyle(fontSize: 10, color: AppColors.muted)),
                                           ),
                                         ),
                                     ],
@@ -694,7 +700,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                                   maxLength: 300,
                                   buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
                                   decoration: InputDecoration(
-                                    hintText: '댓글 작성...',
+                                    hintText: l10n.commentsInputHint,
                                     hintStyle: TextStyle(fontSize: 13, color: AppColors.muted),
                                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide(color: AppColors.pastelPurple.withValues(alpha: 0.3))),

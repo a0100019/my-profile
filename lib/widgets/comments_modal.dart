@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 import '../constants.dart';
+import '../l10n/app_localizations.dart';
 
 class CommentsModal extends StatefulWidget {
   final User? user;
@@ -29,6 +31,7 @@ class _CommentsModalState extends State<CommentsModal> {
   @override
   Widget build(BuildContext context) {
     if (widget.user == null) return const SizedBox.shrink();
+    final l10n = AppLocalizations.of(context);
 
     return Container(
       constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.8),
@@ -47,7 +50,7 @@ class _CommentsModalState extends State<CommentsModal> {
                   builder: (context, snapshot) {
                     final count = snapshot.data?.docs.length ?? 0;
                     WidgetsBinding.instance.addPostFrameCallback((_) => widget.onCountUpdate(count));
-                    return Text('댓글 ($count)', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600));
+                    return Text(l10n.commentsTitle(count), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600));
                   },
                 ),
                 const Spacer(),
@@ -61,7 +64,7 @@ class _CommentsModalState extends State<CommentsModal> {
               builder: (context, snapshot) {
                 if (!snapshot.hasData) return const Center(child: CircularProgressIndicator(color: AppColors.pastelPurple));
                 final docs = snapshot.data!.docs;
-                if (docs.isEmpty) return const Center(child: Text('아직 댓글이 없어요', style: TextStyle(color: AppColors.muted)));
+                if (docs.isEmpty) return Center(child: Text(l10n.commentsEmpty, style: TextStyle(color: AppColors.muted)));
                 return ListView.builder(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   itemCount: docs.length,
@@ -92,7 +95,7 @@ class _CommentsModalState extends State<CommentsModal> {
                                     Text('#${d['authorTag'] ?? ''}', style: TextStyle(fontSize: 10, color: AppColors.muted)),
                                     const Spacer(),
                                     if (ts != null)
-                                      Text('${ts.toDate().month}월 ${ts.toDate().day}일', style: TextStyle(fontSize: 10, color: AppColors.muted)),
+                                      Text(DateFormat.MMMd(Localizations.localeOf(context).languageCode).format(ts.toDate()), style: TextStyle(fontSize: 10, color: AppColors.muted)),
                                   ],
                                 ),
                                 const SizedBox(height: 2),
@@ -103,7 +106,7 @@ class _CommentsModalState extends State<CommentsModal> {
                           const SizedBox(width: 8),
                           GestureDetector(
                             onTap: () => _confirmDelete(docs[i].id),
-                            child: Text('삭제', style: TextStyle(fontSize: 10, color: AppColors.muted)),
+                            child: Text(l10n.commonDelete, style: TextStyle(fontSize: 10, color: AppColors.muted)),
                           ),
                         ],
                       ),
@@ -126,7 +129,7 @@ class _CommentsModalState extends State<CommentsModal> {
                     maxLength: 300,
                     buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
                     decoration: InputDecoration(
-                      hintText: '댓글 작성...',
+                      hintText: l10n.commentsInputHint,
                       hintStyle: TextStyle(fontSize: 13, color: AppColors.muted),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide(color: AppColors.pastelPurple.withValues(alpha: 0.3))),
@@ -157,19 +160,20 @@ class _CommentsModalState extends State<CommentsModal> {
   }
 
   void _confirmDelete(String commentId) {
+    final l10n = AppLocalizations.of(context);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('댓글 삭제'),
-        content: const Text('이 댓글을 삭제할까요?'),
+        title: Text(l10n.commentsDeleteTitle),
+        content: Text(l10n.commentsDeleteConfirm),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('취소')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(l10n.commonCancel)),
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
               _db.collection('users').doc(widget.user!.uid).collection('comments').doc(commentId).delete();
             },
-            child: Text('삭제', style: TextStyle(color: AppColors.pastelPink)),
+            child: Text(l10n.commonDelete, style: TextStyle(color: AppColors.pastelPink)),
           ),
         ],
       ),

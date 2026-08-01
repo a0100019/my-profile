@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../constants.dart';
+import '../l10n/app_localizations.dart';
 import '../screens/public_profile_screen.dart';
 
 class RankingModal extends StatefulWidget {
@@ -55,6 +56,7 @@ class _RankingModalState extends State<RankingModal> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Container(
       constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.8),
       decoration: const BoxDecoration(
@@ -67,7 +69,7 @@ class _RankingModalState extends State<RankingModal> {
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                const Text('🏆 순위', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                Text(l10n.rankingTitle, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                 const Spacer(),
                 GestureDetector(onTap: () => Navigator.pop(context), child: Text('✕', style: TextStyle(fontSize: 18, color: AppColors.muted))),
               ],
@@ -78,11 +80,11 @@ class _RankingModalState extends State<RankingModal> {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               children: [
-                _tabButton('조회수', 'views'),
+                _tabButton(l10n.rankingViews, 'views'),
                 const SizedBox(width: 8),
-                _tabButton('좋아요', 'likes'),
+                _tabButton(l10n.rankingLikes, 'likes'),
                 const SizedBox(width: 8),
-                _tabButton('친구', 'friends'),
+                _tabButton(l10n.rankingFriends, 'friends'),
               ],
             ),
           ),
